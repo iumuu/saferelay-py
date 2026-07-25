@@ -12,6 +12,7 @@ from core.bot import Bot, ParseMode
 from core.database import Database
 from core.http import HttpClient
 from core.logger import get_logger, init_logger
+from services.hcaptcha_webapp import HcaptchaWebAppServer
 
 logger = get_logger("main")
 
@@ -36,6 +37,7 @@ async def amain() -> None:
 
     # 初始化 HTTP 客户端
     http = HttpClient()
+    hcaptcha_webapp = None
 
     # 初始化 Bot
     proxy_cfg = None
@@ -73,6 +75,12 @@ async def amain() -> None:
         hcaptcha_webapp_url=cfg.config.hcaptcha_webapp_url,
         hcaptcha_verify_url=cfg.config.hcaptcha_verify_url,
     )
+    if verify_svc.is_hcaptcha_enabled():
+        hcaptcha_webapp = HcaptchaWebAppServer(
+            site_key=cfg.config.hcaptcha_site_key,
+            port=cfg.config.hcaptcha_webapp_port,
+        )
+        hcaptcha_webapp.start()
     security_svc = SecurityService(
         db=db, bot=bot, http=http,
         admin_ids=cfg.config.admin_ids, admin_uid=cfg.config.admin_uid,
@@ -88,28 +96,32 @@ async def amain() -> None:
     logger.info("all_handlers_registered")
     print("[INFO] SafeRelay-Py 启动完成，等待消息...")
 
-    # 启动 bot 并保持运行
-    await bot.start()
+    try:
+        # 启动 bot 并保持运行
+        await bot.start()
 
-    # 发送启动通知给所有管理员
-    import datetime
-    startup_msg = (
-        f"✅ <b>SafeRelay 已启动</b>\n\n"
-        f"⏰ <code>{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</code>"
-    )
-    for admin_id in cfg.config.admin_ids:
-        try:
-            await bot.send_message(admin_id, startup_msg, parse_mode=ParseMode.HTML)
-            logger.info("startup_notify_sent", {"admin_id": admin_id})
-        except Exception as e:
-            logger.error("startup_notify_failed", {"admin_id": admin_id, "error": str(e)})
+        # 发送启动通知给所有管理员
+        import datetime
+        startup_msg = (
+            f"✅ <b>SafeRelay 已启动</b>\n\n"
+            f"⏰ <code>{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</code>"
+        )
+        for admin_id in cfg.config.admin_ids:
+            try:
+                await bot.send_message(admin_id, startup_msg, parse_mode=ParseMode.HTML)
+                logger.info("startup_notify_sent", {"admin_id": admin_id})
+            except Exception as e:
+                logger.error("startup_notify_failed", {"admin_id": admin_id, "error": str(e)})
 
-    # 注册 Bot 命令列表（需启动后）
-    await bot.set_commands()
-    await idle()
-    await bot.stop()
-    await db.close()
-    await http.close()
+        # 注册 Bot 命令列表（需启动后）
+        await bot.set_commands()
+        await idle()
+    finally:
+        await bot.stop()
+        await db.close()
+        await http.close()
+        if hcaptcha_webapp:
+            hcaptcha_webapp.stop()
 
 
 if __name__ == "__main__":
