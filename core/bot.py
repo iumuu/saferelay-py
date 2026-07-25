@@ -18,6 +18,7 @@ from pyrogram.types import (
     ReplyKeyboardMarkup,
     ReplyKeyboardRemove,
     ForceReply,
+    WebAppInfo,
 )
 from pyrogram.enums import ChatAction, ParseMode as _ParseMode
 ParseMode = _ParseMode
@@ -34,7 +35,8 @@ class Bot:
     """Bot 封装，包装 Pyrogram/Kurigram Client。"""
 
     def __init__(self, bot_token: str, api_id: int = 0, api_hash: str = "",
-                 proxy: Optional[Dict[str, Any]] = None):
+                 proxy: Optional[Dict[str, Any]] = None,
+                 protect_user_content: bool = False):
         """初始化 Bot。
 
         Args:
@@ -54,6 +56,7 @@ class Bot:
         if proxy:
             kwargs["proxy"] = proxy
         self._client = _PyroClient(**kwargs)
+        self._protect_user_content = protect_user_content
 
     # ---- 工具方法 ----
 
@@ -69,6 +72,17 @@ class Bot:
             }
             return mode_map.get(parse_mode.lower(), _ParseMode.DEFAULT)
         return parse_mode
+
+    def _apply_user_content_protection(self, chat_id: Union[int, str], kwargs: Dict[str, Any]) -> None:
+        """Apply Telegram copy/forward protection to direct user chats."""
+        if not self._protect_user_content or "protect_content" in kwargs:
+            return
+        try:
+            is_user_chat = int(chat_id) > 0
+        except (TypeError, ValueError):
+            is_user_chat = False
+        if is_user_chat:
+            kwargs["protect_content"] = True
 
     # ---- 事件注册 ----
 
@@ -110,6 +124,7 @@ class Bot:
         """发送消息。"""
         if "parse_mode" in kwargs:
             kwargs["parse_mode"] = self._normalize_parse_mode(kwargs["parse_mode"])
+        self._apply_user_content_protection(chat_id, kwargs)
         return await self._client.send_message(chat_id, text, **kwargs)
 
     async def forward_messages(
@@ -119,6 +134,7 @@ class Bot:
         """转发消息。"""
         if isinstance(message_ids, int):
             message_ids = [message_ids]
+        self._apply_user_content_protection(chat_id, kwargs)
         result = await self._client.forward_messages(
             chat_id, from_chat_id, message_ids, **kwargs
         )
@@ -131,6 +147,7 @@ class Bot:
         message_id: int, **kwargs
     ) -> Optional[Message]:
         """复制消息。"""
+        self._apply_user_content_protection(chat_id, kwargs)
         return await self._client.copy_message(chat_id, from_chat_id, message_id, **kwargs)
 
     async def edit_message_text(
