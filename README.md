@@ -123,7 +123,7 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-默认镜像名是 `iumuu/saferelay-py:latest`，也可以覆盖：
+默认镜像名是 `gvddfdf/saferelay-py:latest`，也可以覆盖：
 
 ```bash
 SAFERELAY_IMAGE=你的DockerHub用户名/saferelay-py:latest docker compose up -d
@@ -141,7 +141,7 @@ SAFERELAY_IMAGE=你的DockerHub用户名/saferelay-py:latest docker compose up -
 |------|------|------|
 | `DOCKERHUB_USERNAME` | Secret | Docker Hub 用户名 |
 | `DOCKERHUB_TOKEN` | Secret | Docker Hub access token |
-| `DOCKERHUB_IMAGE` | Variable（可选） | 完整镜像名，如 `iumuu/saferelay-py`；不填默认 `GitHub用户名/saferelay-py` |
+| `DOCKERHUB_IMAGE` | Variable（可选） | 完整镜像名，如 `gvddfdf/saferelay-py`；不填默认 `gvddfdf/saferelay-py` |
 
 ---
 
