@@ -37,6 +37,20 @@ class Config:
         self.welcome_msg: str = os.getenv("WELCOME_MSG", "")
         self.autoreply_msg: str = os.getenv("AUTOREPLY_MSG", "")
 
+        # 验证方式：quiz（本地题库）或 hcaptcha（Telegram Web App + hCaptcha）
+        self.verify_provider: str = os.getenv("VERIFY_PROVIDER", "quiz").strip().lower()
+        self.hcaptcha_site_key: str = os.getenv("HCAPTCHA_SITE_KEY", "")
+        self.hcaptcha_secret: str = os.getenv("HCAPTCHA_SECRET", "")
+        self.hcaptcha_webapp_url: str = os.getenv("HCAPTCHA_WEBAPP_URL", "")
+        self.hcaptcha_verify_url: str = os.getenv(
+            "HCAPTCHA_VERIFY_URL",
+            "https://api.hcaptcha.com/siteverify",
+        )
+
+        # 给用户发送/复制/转发消息时启用 Telegram protect_content，禁止普通转发/复制。
+        raw_protect_user_content: str = os.getenv("PROTECT_USER_CONTENT", "true")
+        self.protect_user_content: bool = raw_protect_user_content.lower() in ("true", "1", "yes")
+
         # 欺诈数据库 URL
         self.fraud_db_url: str = os.getenv(
             "FRAUD_DB_URL",
@@ -96,6 +110,15 @@ class Config:
             errors.append("GROUP_ID is required (群聊话题模式必须配置论坛群组ID)")
         if self.bot_token and ":" not in self.bot_token:
             errors.append("BOT_TOKEN should be in format: 123456:ABC-DEF...")
+        if self.verify_provider not in ("quiz", "hcaptcha"):
+            errors.append("VERIFY_PROVIDER must be quiz or hcaptcha")
+        if self.verify_provider == "hcaptcha":
+            if not self.hcaptcha_site_key:
+                errors.append("HCAPTCHA_SITE_KEY is required when VERIFY_PROVIDER=hcaptcha")
+            if not self.hcaptcha_secret:
+                errors.append("HCAPTCHA_SECRET is required when VERIFY_PROVIDER=hcaptcha")
+            if not self.hcaptcha_webapp_url:
+                errors.append("HCAPTCHA_WEBAPP_URL is required when VERIFY_PROVIDER=hcaptcha")
         return "; ".join(errors)
 
 
