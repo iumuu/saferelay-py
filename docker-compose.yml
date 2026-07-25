@@ -1,0 +1,16 @@
+services:
+  saferelay:
+    image: ${SAFERELAY_IMAGE:-iumuu/saferelay-py:latest}
+    build:
+      context: .
+    container_name: saferelay-py
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - saferelay-data:/app/data
+      - saferelay-logs:/app/logs
+
+volumes:
+  saferelay-data:
+  saferelay-logs:
