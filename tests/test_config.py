@@ -36,6 +36,41 @@ class ConfigTests(unittest.TestCase):
         self.assertIn("ADMIN_IDS is required", errors)
         self.assertIn("GROUP_ID is required", errors)
 
+    def test_hcaptcha_requires_keys_and_webapp_url(self):
+        cfg = self._load_config(
+            {
+                "BOT_TOKEN": "123456:ABC",
+                "ADMIN_IDS": "42",
+                "GROUP_ID": "-1001234567890",
+                "API_ID": "1",
+                "VERIFY_PROVIDER": "hcaptcha",
+            }
+        )
+
+        errors = cfg.validate()
+
+        self.assertIn("HCAPTCHA_SITE_KEY is required", errors)
+        self.assertIn("HCAPTCHA_SECRET is required", errors)
+        self.assertIn("HCAPTCHA_WEBAPP_URL is required", errors)
+
+    def test_hcaptcha_config_can_validate(self):
+        cfg = self._load_config(
+            {
+                "BOT_TOKEN": "123456:ABC",
+                "ADMIN_IDS": "42",
+                "GROUP_ID": "-1001234567890",
+                "API_ID": "1",
+                "VERIFY_PROVIDER": "hcaptcha",
+                "HCAPTCHA_SITE_KEY": "site-key",
+                "HCAPTCHA_SECRET": "secret",
+                "HCAPTCHA_WEBAPP_URL": "https://example.com/hcaptcha.html",
+            }
+        )
+
+        self.assertEqual(cfg.validate(), "")
+        self.assertEqual(cfg.verify_provider, "hcaptcha")
+        self.assertTrue(cfg.protect_user_content)
+
 
 if __name__ == "__main__":
     unittest.main()
