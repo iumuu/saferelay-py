@@ -5,6 +5,7 @@
 import json
 import time
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import func, select, delete
@@ -32,6 +33,9 @@ class Database:
 
     def __init__(self, db_path: str = DB_PATH):
         self._db_path = db_path
+        db_parent = Path(db_path).expanduser().parent
+        if str(db_parent) not in ("", "."):
+            db_parent.mkdir(parents=True, exist_ok=True)
         self._engine = create_async_engine(
             f"sqlite+aiosqlite:///{db_path}",
             echo=False,
