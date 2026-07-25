@@ -12,6 +12,7 @@ logger = get_logger("services.menu")
 
 CONFIG_WELCOME_MSG = "welcome_msg"
 CONFIG_PROTECT_USER_CONTENT = "protect_user_content"
+CONFIG_VERIFY_PROVIDER = "verify_provider"
 
 
 async def build_main_menu(
@@ -23,11 +24,13 @@ async def build_main_menu(
     spam_enabled = await security_svc.is_spam_enabled()
     protect_user_content = await db.get_config(CONFIG_PROTECT_USER_CONTENT, "1")
     protect_enabled = protect_user_content not in ("0", "false")
+    verify_provider = await db.get_config(CONFIG_VERIFY_PROVIDER, "quiz")
+    verify_label = "hCaptcha" if verify_provider == "hcaptcha" else "本地题库"
 
     text = (
         f"🛠 <b>SafeRelay 管理面板</b>\n\n"
         f"📊 <b>当前配置:</b>\n"
-        f"🔸 📝 验证模式：本地题库\n"
+        f"🔸 📝 验证模式：{verify_label}\n"
         f"🔸 {'🟢' if spam_enabled else '🔴'} 垃圾过滤：{'已开启' if spam_enabled else '已关闭'}\n"
         f"🔸 {'🟢' if protect_enabled else '🔴'} 普通复制/转发保护：{'已开启' if protect_enabled else '已关闭'}\n"
         f"🔸 {'🟢' if welcome_msg else '⚪️'} 欢迎消息：{'已设置' if welcome_msg else '未设置'}\n"
@@ -41,11 +44,31 @@ async def build_main_menu(
              InlineKeyboardButton("👥 用户管理", callback_data="submenu_users")],
             [InlineKeyboardButton("👋 欢迎消息", callback_data="submenu_welcome"),
              InlineKeyboardButton("🤖 自动回复", callback_data="submenu_autoreply")],
-            [InlineKeyboardButton("🔒 普通复制/转发", callback_data="submenu_protect"),
-             InlineKeyboardButton("📊 统计信息", callback_data="submenu_stats")],
+            [InlineKeyboardButton("📝 验证模式", callback_data="submenu_verify"),
+             InlineKeyboardButton("🔒 普通复制/转发", callback_data="submenu_protect")],
+            [InlineKeyboardButton("📊 统计信息", callback_data="submenu_stats")],
             [InlineKeyboardButton("🔄 重启 Bot", callback_data="restart_bot")],
         ]
     )
+    return text, keyboard
+
+
+async def build_verify_menu(db: Database) -> Tuple[str, InlineKeyboardMarkup]:
+    """构建验证模式切换菜单。"""
+    provider = await db.get_config(CONFIG_VERIFY_PROVIDER, "quiz")
+    is_hcaptcha = provider == "hcaptcha"
+    text = (
+        f"📝 <b>验证模式设置</b>\n\n"
+        f"当前模式: <b>{'🟢 hCaptcha' if is_hcaptcha else '🟢 本地题库 Quiz'}</b>\n\n"
+        f"• 本地题库：用户回答简单问题\n"
+        f"• hCaptcha：用户通过 Telegram Web App 完成人机验证\n\n"
+        f"切换后对新触发验证的用户立即生效。"
+    )
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton("✅ 本地题库 Quiz" if not is_hcaptcha else "切换到本地题库 Quiz", callback_data="set_verify_quiz")],
+        [InlineKeyboardButton("✅ hCaptcha" if is_hcaptcha else "切换到 hCaptcha", callback_data="set_verify_hcaptcha")],
+        [InlineKeyboardButton("◀️ 返回主菜单", callback_data="back_to_main")],
+    ])
     return text, keyboard
 
 

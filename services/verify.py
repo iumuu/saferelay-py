@@ -67,14 +67,13 @@ class VerifyService:
         # 内存中存储活跃验证挑战
         self._challenges: Dict[str, Dict[str, Any]] = {}
 
+    def is_hcaptcha_configured(self) -> bool:
+        """Return True when hCaptcha keys and WebApp URL are configured."""
+        return bool(self.hcaptcha_site_key) and bool(self.hcaptcha_secret) and bool(self.hcaptcha_webapp_url)
+
     def is_hcaptcha_enabled(self) -> bool:
         """Return True when hCaptcha should replace the local quiz."""
-        return (
-            self.provider == "hcaptcha"
-            and bool(self.hcaptcha_site_key)
-            and bool(self.hcaptcha_secret)
-            and bool(self.hcaptcha_webapp_url)
-        )
+        return self.provider == "hcaptcha" and self.is_hcaptcha_configured()
 
     @staticmethod
     def generate_keyboard(question: Dict[str, Any]) -> InlineKeyboardMarkup:

@@ -11,7 +11,7 @@ from services.menu import (
     build_main_menu, build_spam_menu,
     build_welcome_menu, build_autoreply_menu,
     build_users_menu, build_stats_menu,
-    build_protect_menu,
+    build_protect_menu, build_verify_menu,
 )
 from services.security import SecurityService
 from services.stats import StatsService
@@ -129,6 +129,7 @@ def register(
             "submenu_autoreply": lambda: build_autoreply_menu(db),
             "submenu_users": lambda: build_users_menu(db),
             "submenu_protect": lambda: build_protect_menu(db),
+            "submenu_verify": lambda: build_verify_menu(db),
             "submenu_stats": lambda: build_stats_menu(stats_svc, db),
             "back_to_main": lambda: build_main_menu(db, forward_svc, security_svc),
         }
@@ -142,7 +143,7 @@ def register(
         await bot.edit_message_text(chat_id, msg_id, text, parse_mode=ParseMode.HTML, reply_markup=keyboard)
         await callback.answer()
 
-    @bot.on_callback_query(filters.regex(r"^(submenu_|toggle_|back_to_|refresh_|users_|user_|reset_spam|restart_bot)"))
+    @bot.on_callback_query(filters.regex(r"^(submenu_|toggle_|back_to_|refresh_|users_|user_|reset_spam|restart_bot|set_verify_)"))
     async def on_admin_callback(client: Any, callback: CallbackQuery) -> None:
         """处理管理菜单导航。"""
         user_id = callback.from_user.id
@@ -173,6 +174,16 @@ def register(
             await db.set_config("protect_user_content", "0" if enabled else "1")
             await callback.answer(f"{'已关闭' if enabled else '已开启'}普通复制/转发保护")
             return await _show_submenu("submenu_protect", callback)
+
+        if data in ("set_verify_quiz", "set_verify_hcaptcha"):
+            provider = "hcaptcha" if data == "set_verify_hcaptcha" else "quiz"
+            if provider == "hcaptcha" and not verify_svc.is_hcaptcha_configured():
+                await callback.answer("hCaptcha 未配置：请检查 HCAPTCHA_SITE_KEY / HCAPTCHA_SECRET / HCAPTCHA_WEBAPP_URL", show_alert=True)
+                return
+            verify_svc.provider = provider
+            await db.set_config("verify_provider", provider)
+            await callback.answer(f"已切换到 {'hCaptcha' if provider == 'hcaptcha' else '本地题库'}")
+            return await _show_submenu("submenu_verify", callback)
 
         if data == "refresh_stats":
             await callback.answer("已刷新")

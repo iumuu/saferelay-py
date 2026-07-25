@@ -74,17 +74,22 @@ async def amain() -> None:
         db=db, bot=bot, admin_ids=cfg.config.admin_ids, group_id=cfg.config.group_id,
         protect_user_content=cfg.config.protect_user_content,
     )
+    verify_provider = await db.get_config("verify_provider", cfg.config.verify_provider)
+    if verify_provider not in ("quiz", "hcaptcha"):
+        verify_provider = cfg.config.verify_provider
+    await db.set_config("verify_provider", verify_provider)
+
     verify_svc = VerifyService(
         db=db,
         bot=bot,
         http=http,
-        provider=cfg.config.verify_provider,
+        provider=verify_provider,
         hcaptcha_site_key=cfg.config.hcaptcha_site_key,
         hcaptcha_secret=cfg.config.hcaptcha_secret,
         hcaptcha_webapp_url=cfg.config.hcaptcha_webapp_url,
         hcaptcha_verify_url=cfg.config.hcaptcha_verify_url,
     )
-    if verify_svc.is_hcaptcha_enabled():
+    if cfg.config.hcaptcha_site_key and cfg.config.hcaptcha_webapp_url:
         hcaptcha_webapp = HcaptchaWebAppServer(
             site_key=cfg.config.hcaptcha_site_key,
             port=cfg.config.hcaptcha_webapp_port,
