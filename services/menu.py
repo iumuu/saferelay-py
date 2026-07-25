@@ -11,6 +11,7 @@ from core.logger import get_logger
 logger = get_logger("services.menu")
 
 CONFIG_WELCOME_MSG = "welcome_msg"
+CONFIG_PROTECT_USER_CONTENT = "protect_user_content"
 
 
 async def build_main_menu(
@@ -20,12 +21,15 @@ async def build_main_menu(
     welcome_msg = await db.get_config(CONFIG_WELCOME_MSG, "")
     auto_reply = await db.get_config("auto_reply_msg", "")
     spam_enabled = await security_svc.is_spam_enabled()
+    protect_user_content = await db.get_config(CONFIG_PROTECT_USER_CONTENT, "1")
+    protect_enabled = protect_user_content not in ("0", "false")
 
     text = (
         f"🛠 <b>SafeRelay 管理面板</b>\n\n"
         f"📊 <b>当前配置:</b>\n"
         f"🔸 📝 验证模式：本地题库\n"
         f"🔸 {'🟢' if spam_enabled else '🔴'} 垃圾过滤：{'已开启' if spam_enabled else '已关闭'}\n"
+        f"🔸 {'🟢' if protect_enabled else '🔴'} 普通复制/转发保护：{'已开启' if protect_enabled else '已关闭'}\n"
         f"🔸 {'🟢' if welcome_msg else '⚪️'} 欢迎消息：{'已设置' if welcome_msg else '未设置'}\n"
         f"🔸 {'🟢' if auto_reply else '⚪️'} 自动回复：{'已设置' if auto_reply else '未设置'}\n"
         f"🔸 💬 转发模式：群聊话题\n\n"
@@ -37,8 +41,9 @@ async def build_main_menu(
              InlineKeyboardButton("👥 用户管理", callback_data="submenu_users")],
             [InlineKeyboardButton("👋 欢迎消息", callback_data="submenu_welcome"),
              InlineKeyboardButton("🤖 自动回复", callback_data="submenu_autoreply")],
-            [InlineKeyboardButton("📊 统计信息", callback_data="submenu_stats"),
-             InlineKeyboardButton("🔄 重启 Bot", callback_data="restart_bot")],
+            [InlineKeyboardButton("🔒 普通复制/转发", callback_data="submenu_protect"),
+             InlineKeyboardButton("📊 统计信息", callback_data="submenu_stats")],
+            [InlineKeyboardButton("🔄 重启 Bot", callback_data="restart_bot")],
         ]
     )
     return text, keyboard
@@ -61,6 +66,26 @@ async def build_spam_menu(
             callback_data="toggle_spam_filter",
         )],
         [InlineKeyboardButton("🔄 重置为默认规则", callback_data="reset_spam_rules")],
+        [InlineKeyboardButton("◀️ 返回主菜单", callback_data="back_to_main")],
+    ])
+    return text, keyboard
+
+
+async def build_protect_menu(db: Database) -> Tuple[str, InlineKeyboardMarkup]:
+    """构建普通复制/转发保护设置菜单。"""
+    raw = await db.get_config(CONFIG_PROTECT_USER_CONTENT, "1")
+    enabled = raw not in ("0", "false")
+    text = (
+        f"🔒 <b>普通复制/转发保护</b>\n\n"
+        f"当前状态: <b>{'🟢 已开启' if enabled else '🔴 已关闭'}</b>\n\n"
+        f"开启后，发给普通用户的消息会启用 Telegram protect_content。"
+        f" 用户无法直接复制或转发这些消息。"
+    )
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            f"{'🔴 关闭保护' if enabled else '🟢 开启保护'}",
+            callback_data="toggle_protect_user_content",
+        )],
         [InlineKeyboardButton("◀️ 返回主菜单", callback_data="back_to_main")],
     ])
     return text, keyboard
