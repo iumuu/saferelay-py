@@ -17,11 +17,12 @@ class ForwardService:
     """消息转发服务 — 仅支持群聊话题模式。"""
 
     def __init__(self, db: Database, bot: Bot, admin_ids: List[int],
-                 group_id: int):
+                 group_id: int, protect_user_content: bool = False):
         self.db = db
         self.bot = bot
         self.admin_ids = admin_ids
         self.group_id = group_id
+        self.protect_user_content = protect_user_content
         self.admin_uid = admin_ids[0] if admin_ids else None
         self.media_collector = MediaGroupCollector()
 
@@ -125,7 +126,10 @@ class ForwardService:
             return
 
         try:
-            copy = await message.copy(guest_chat_id)
+            copy = await message.copy(
+                guest_chat_id,
+                protect_content=self.protect_user_content,
+            )
             if copy:
                 await self.db.store_reply_mapping(message.id, guest_chat_id, copy.id)
         except Exception as e:
