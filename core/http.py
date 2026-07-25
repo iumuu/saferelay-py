@@ -29,6 +29,13 @@ class HttpClient:
         resp.raise_for_status()
         return resp.json()
 
+    async def post_form(self, url: str, data: Dict[str, Any], **kwargs) -> Dict[str, Any]:
+        """Send an application/x-www-form-urlencoded POST request."""
+        client = await self._ensure()
+        resp = await client.post(url, data=data, **kwargs)
+        resp.raise_for_status()
+        return resp.json()
+
     async def close(self) -> None:
         """关闭 HTTP 客户端。"""
         if self._client:
