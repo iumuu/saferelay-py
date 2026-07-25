@@ -28,6 +28,8 @@ SafeRelay-Py 是 [SafeRelay](https://github.com/qianqi32/SafeRelay) 的 Python �
 | **双向消息转发** | 用户 ↔ 管理员，支持文本/图片/文件/媒体组 |
 | **论坛话题模式** | 每位访客自动创建话题，管理员在话题中回复即回传 |
 | **本地题库验证** | 15 道中文选择题，InlineKeyboard 作答，防机器人骚扰 |
+| **hCaptcha 验证** | 可选 Telegram Web App + hCaptcha 验证，适合公开入口 |
+| **用户内容保护** | 发给普通用户的消息可启用 Telegram protect_content，限制复制/转发 |
 | **编辑同步** | 用户和管理员编辑消息后自动同步更新 |
 | **黑白名单** | 精准控制哪些用户可以跳过验证或禁止访问 |
 | **联合封禁** | 接入第三方封禁系统，一次封禁全网拦截 |
@@ -91,6 +93,22 @@ cp .env.example .env
 | `GROUP_ID` | 论坛群组 ID（话题模式需要） | `-1001234567890` |
 | `WELCOME_MSG` | 欢迎消息 | `欢迎你！请先完成验证` |
 | `AUTOREPLY_MSG` | 自动回复 | `客服已收到您的消息` |
+| `VERIFY_PROVIDER` | 验证方式：`quiz` 或 `hcaptcha` | `quiz` |
+| `HCAPTCHA_SITE_KEY` | hCaptcha site key，`VERIFY_PROVIDER=hcaptcha` 时必需 | `10000000-ffff-ffff-ffff-000000000001` |
+| `HCAPTCHA_SECRET` | hCaptcha secret，`VERIFY_PROVIDER=hcaptcha` 时必需 | `0x...` |
+| `HCAPTCHA_WEBAPP_URL` | Telegram Web App 验证页 URL，完成后需 `sendData` 回传 token | `https://example.com/telegram-hcaptcha.html` |
+| `PROTECT_USER_CONTENT` | 发给普通用户的消息是否禁止复制/转发 | `true` |
+
+### hCaptcha Web App 回传格式
+
+`HCAPTCHA_WEBAPP_URL` 指向的页面完成 hCaptcha 后，需要调用 Telegram Web App API：
+
+```js
+Telegram.WebApp.sendData(JSON.stringify({ hcaptcha_token: token }));
+Telegram.WebApp.close();
+```
+
+Bot 收到 `web_app_data` 后会调用 hCaptcha `siteverify`，通过后自动处理用户验证前暂存的消息。
 
 ### 运行
 
