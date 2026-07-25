@@ -116,6 +116,33 @@ Bot 收到 `web_app_data` 后会调用 hCaptcha `siteverify`，通过后自动�
 uv run python3 main.py
 ```
 
+### Docker 运行
+
+```bash
+cp .env.example .env
+docker compose up -d --build
+```
+
+默认镜像名是 `iumuu/saferelay-py:latest`，也可以覆盖：
+
+```bash
+SAFERELAY_IMAGE=你的DockerHub用户名/saferelay-py:latest docker compose up -d
+```
+
+数据库和日志会分别保存到 Docker volume：`saferelay-data`、`saferelay-logs`。
+
+### 自动发布到 Docker Hub
+
+仓库已包含 GitHub Actions workflow：`.github/workflows/dockerhub.yml`。推送到 `main` 或创建 `v*.*.*` tag 时会自动构建并推送镜像。
+
+需要在 GitHub 仓库中配置：
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `DOCKERHUB_USERNAME` | Secret | Docker Hub 用户名 |
+| `DOCKERHUB_TOKEN` | Secret | Docker Hub access token |
+| `DOCKERHUB_IMAGE` | Variable（可选） | 完整镜像名，如 `iumuu/saferelay-py`；不填默认 `GitHub用户名/saferelay-py` |
+
 ---
 
 ## 管理命令
