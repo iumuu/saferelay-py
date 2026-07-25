@@ -35,6 +35,14 @@ async def amain() -> None:
     await db.init()
     logger.info("db_initialized")
 
+    protect_default = "1" if cfg.config.protect_user_content else "0"
+    if await db.get_config("protect_user_content", "") == "":
+        await db.set_config("protect_user_content", protect_default)
+
+    async def _get_protect_user_content() -> bool:
+        value = await db.get_config("protect_user_content", protect_default)
+        return value not in ("0", "false")
+
     # 初始化 HTTP 客户端
     http = HttpClient()
     hcaptcha_webapp = None
@@ -53,6 +61,7 @@ async def amain() -> None:
         api_hash=cfg.config.api_hash,
         proxy=proxy_cfg,
         protect_user_content=cfg.config.protect_user_content,
+        protect_user_content_getter=_get_protect_user_content,
     )
 
     # 导入并注册 handler（延迟导入避免循环依赖）
