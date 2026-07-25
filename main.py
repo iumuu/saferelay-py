@@ -50,6 +50,7 @@ async def amain() -> None:
         api_id=cfg.config.api_id,
         api_hash=cfg.config.api_hash,
         proxy=proxy_cfg,
+        protect_user_content=cfg.config.protect_user_content,
     )
 
     # 导入并注册 handler（延迟导入避免循环依赖）
@@ -60,8 +61,18 @@ async def amain() -> None:
 
     forward_svc = ForwardService(
         db=db, bot=bot, admin_ids=cfg.config.admin_ids, group_id=cfg.config.group_id,
+        protect_user_content=cfg.config.protect_user_content,
     )
-    verify_svc = VerifyService(db=db, bot=bot)
+    verify_svc = VerifyService(
+        db=db,
+        bot=bot,
+        http=http,
+        provider=cfg.config.verify_provider,
+        hcaptcha_site_key=cfg.config.hcaptcha_site_key,
+        hcaptcha_secret=cfg.config.hcaptcha_secret,
+        hcaptcha_webapp_url=cfg.config.hcaptcha_webapp_url,
+        hcaptcha_verify_url=cfg.config.hcaptcha_verify_url,
+    )
     security_svc = SecurityService(
         db=db, bot=bot, http=http,
         admin_ids=cfg.config.admin_ids, admin_uid=cfg.config.admin_uid,
