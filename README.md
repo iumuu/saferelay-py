@@ -110,6 +110,16 @@ Telegram.WebApp.close();
 
 Bot 收到 `web_app_data` 后会调用 hCaptcha `siteverify`，通过后自动处理用户验证前暂存的消息。
 
+### 内置 hCaptcha 页面
+
+容器会在 `HCAPTCHA_WEBAPP_PORT` 上内置启动一个验证页服务。配套的 `caddy` 容器会自动把你的域名反代到这个页面并申请 TLS 证书，所以你只需要把域名 A 记录指向 VPS。
+
+`DOMAIN` 需要指向你的公网域名，`HCAPTCHA_WEBAPP_URL` 通常直接填成：
+
+```env
+HCAPTCHA_WEBAPP_URL=https://bot.example.com/hcaptcha
+```
+
 ### 运行
 
 ```bash
@@ -130,6 +140,7 @@ SAFERELAY_IMAGE=你的DockerHub用户名/saferelay-py:latest docker compose up -
 ```
 
 数据库和日志会分别保存到 Docker volume：`saferelay-data`、`saferelay-logs`。
+`caddy_data` 和 `caddy_config` 用于保存自动签发的证书和配置状态。
 
 ### 自动发布到 Docker Hub
 
