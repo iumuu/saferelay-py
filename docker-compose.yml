@@ -1,6 +1,6 @@
 services:
   saferelay:
-    image: ${SAFERELAY_IMAGE:-iumuu/saferelay-py:latest}
+    image: ${SAFERELAY_IMAGE:-gvddfdf/saferelay-py:latest}
     build:
       context: .
     container_name: saferelay-py
