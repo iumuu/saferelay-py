@@ -42,6 +42,7 @@ class Config:
         self.hcaptcha_site_key: str = os.getenv("HCAPTCHA_SITE_KEY", "")
         self.hcaptcha_secret: str = os.getenv("HCAPTCHA_SECRET", "")
         self.hcaptcha_webapp_url: str = os.getenv("HCAPTCHA_WEBAPP_URL", "")
+        self.hcaptcha_webapp_port: int = int(os.getenv("HCAPTCHA_WEBAPP_PORT", "8080"))
         self.hcaptcha_verify_url: str = os.getenv(
             "HCAPTCHA_VERIFY_URL",
             "https://api.hcaptcha.com/siteverify",
