@@ -4,7 +4,7 @@
 防止 handlers/services 直接 import pyrogram。
 """
 
-from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
+from typing import Any, Awaitable, Callable, Dict, List, Optional, TypeVar, Union
 
 # 从 pyrogram 重导出常用类型
 from pyrogram.types import (
@@ -36,7 +36,8 @@ class Bot:
 
     def __init__(self, bot_token: str, api_id: int = 0, api_hash: str = "",
                  proxy: Optional[Dict[str, Any]] = None,
-                 protect_user_content: bool = False):
+                 protect_user_content: bool = False,
+                 protect_user_content_getter: Optional[Callable[[], Awaitable[bool]]] = None):
         """初始化 Bot。
 
         Args:
@@ -57,6 +58,7 @@ class Bot:
             kwargs["proxy"] = proxy
         self._client = _PyroClient(**kwargs)
         self._protect_user_content = protect_user_content
+        self._protect_user_content_getter = protect_user_content_getter
 
     # ---- 工具方法 ----
 
@@ -73,15 +75,23 @@ class Bot:
             return mode_map.get(parse_mode.lower(), _ParseMode.DEFAULT)
         return parse_mode
 
-    def _apply_user_content_protection(self, chat_id: Union[int, str], kwargs: Dict[str, Any]) -> None:
+    async def _should_protect_user_content(self) -> bool:
+        if self._protect_user_content_getter is not None:
+            try:
+                return bool(await self._protect_user_content_getter())
+            except Exception:
+                pass
+        return self._protect_user_content
+
+    async def _apply_user_content_protection(self, chat_id: Union[int, str], kwargs: Dict[str, Any]) -> None:
         """Apply Telegram copy/forward protection to direct user chats."""
-        if not self._protect_user_content or "protect_content" in kwargs:
+        if "protect_content" in kwargs:
             return
         try:
             is_user_chat = int(chat_id) > 0
         except (TypeError, ValueError):
             is_user_chat = False
-        if is_user_chat:
+        if is_user_chat and await self._should_protect_user_content():
             kwargs["protect_content"] = True
 
     # ---- 事件注册 ----
@@ -124,7 +134,7 @@ class Bot:
         """发送消息。"""
         if "parse_mode" in kwargs:
             kwargs["parse_mode"] = self._normalize_parse_mode(kwargs["parse_mode"])
-        self._apply_user_content_protection(chat_id, kwargs)
+        await self._apply_user_content_protection(chat_id, kwargs)
         return await self._client.send_message(chat_id, text, **kwargs)
 
     async def forward_messages(
@@ -134,7 +144,7 @@ class Bot:
         """转发消息。"""
         if isinstance(message_ids, int):
             message_ids = [message_ids]
-        self._apply_user_content_protection(chat_id, kwargs)
+        await self._apply_user_content_protection(chat_id, kwargs)
         result = await self._client.forward_messages(
             chat_id, from_chat_id, message_ids, **kwargs
         )
@@ -147,7 +157,7 @@ class Bot:
         message_id: int, **kwargs
     ) -> Optional[Message]:
         """复制消息。"""
-        self._apply_user_content_protection(chat_id, kwargs)
+        await self._apply_user_content_protection(chat_id, kwargs)
         return await self._client.copy_message(chat_id, from_chat_id, message_id, **kwargs)
 
     async def edit_message_text(
