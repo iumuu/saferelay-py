@@ -27,6 +27,54 @@ def register(
 ) -> None:
     """注册用户消息处理器。"""
 
+    async def _notify_verify_success(user_id: int, display_name: str, message: Message) -> None:
+        pending_result = await forward_svc.process_pending(user_id)
+        success_text = "✅ 验证成功！您现在可以发送消息给管理员了。"
+        if pending_result["forwarded"] > 0:
+            success_text = f"✅ 验证成功！\n\n📨 刚才的 {pending_result['forwarded']} 条消息已送达管理员。"
+        await bot.send_message(user_id, success_text)
+        await stats_svc.record_active_user(user_id)
+
+        if forward_svc.admin_uid and message.from_user:
+            username = message.from_user.username
+            name = (
+                f"{message.from_user.first_name or ''} {message.from_user.last_name or ''}"
+            ).strip()
+            username_line = f"\n📎 @{username}" if username else ""
+            await bot.send_message(
+                forward_svc.admin_uid,
+                f"✅ <b>新用户验证通过</b>\n\n🆔 <code>{user_id}</code> ({name or display_name}){username_line}",
+                parse_mode=ParseMode.HTML,
+            )
+
+    async def _send_verification_prompt(user_id: int, welcome: str = "") -> None:
+        if verify_svc.is_hcaptcha_enabled():
+            text = (
+                f"{welcome}\n\n🛡 请完成人机验证以继续对话。"
+                if welcome
+                else "🛡 为了防止垃圾消息，请先完成人机验证。"
+            )
+            await bot.send_message(
+                user_id,
+                text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=verify_svc.generate_hcaptcha_keyboard(user_id),
+            )
+            return
+
+        challenge_id, question = verify_svc.create_challenge(user_id)
+        text = (
+            f"{welcome}\n\n🛡 请回答以下问题以继续对话：\n\n<b>{question['q']}</b>"
+            if welcome
+            else f"🛡 为了防止垃圾消息，请回答以下问题：\n\n<b>{question['q']}</b>"
+        )
+        await bot.send_message(
+            user_id,
+            text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=verify_svc.generate_keyboard(question),
+        )
+
     @bot.on_message(filters.private & ~filters.command(["start", "help", "menu"]))
     async def on_guest_message(client: Any, message: Message) -> None:
         """处理用户私聊消息（非命令）。"""
@@ -64,6 +112,18 @@ def register(
                 "🚫 <b>服务不可用</b>\n\n您的账号存在异常，无法使用本服务。",
                 parse_mode=ParseMode.HTML,
             )
+            return
+
+        web_app_data = getattr(message, "web_app_data", None)
+        if web_app_data and verify_svc.is_hcaptcha_enabled():
+            token = verify_svc.extract_hcaptcha_token(getattr(web_app_data, "data", ""))
+            result = await verify_svc.verify_hcaptcha_token(token)
+            if result["success"]:
+                display_name = message.from_user.first_name or message.from_user.username or "Unknown"
+                await db.mark_verified(user_id, display_name)
+                await _notify_verify_success(user_id, display_name, message)
+            else:
+                await bot.send_message(user_id, result["message"])
             return
 
         # 已验证用户
@@ -107,19 +167,8 @@ def register(
         # 触发验证
         limit_ok = await verify_svc.check_trigger_limit(user_id)
         if limit_ok:
-            challenge_id, question = verify_svc.create_challenge(user_id)
             welcome = await db.get_config(CONFIG_WELCOME_MSG, "")
-            text = (
-                f"{welcome}\n\n🛡 请回答以下问题以继续对话：\n\n<b>{question['q']}</b>"
-                if welcome
-                else f"🛡 为了防止垃圾消息，请回答以下问题：\n\n<b>{question['q']}</b>"
-            )
-            await bot.send_message(
-                user_id,
-                text,
-                parse_mode=ParseMode.HTML,
-                reply_markup=verify_svc.generate_keyboard(question),
-            )
+            await _send_verification_prompt(user_id, welcome)
         else:
             await message.reply_text("⏳ 验证尝试过于频繁，请5分钟后再试。")
 
@@ -144,19 +193,8 @@ def register(
         # 未验证：发送验证
         limit_ok = await verify_svc.check_trigger_limit(user_id)
         if limit_ok:
-            challenge_id, question = verify_svc.create_challenge(user_id)
             welcome = await db.get_config(CONFIG_WELCOME_MSG, "")
-            text = (
-                f"{welcome}\n\n🛡 请回答以下问题以继续对话：\n\n<b>{question['q']}</b>"
-                if welcome
-                else f"🛡 为了防止垃圾消息，请回答以下问题：\n\n<b>{question['q']}</b>"
-            )
-            await bot.send_message(
-                user_id,
-                text,
-                parse_mode=ParseMode.HTML,
-                reply_markup=verify_svc.generate_keyboard(question),
-            )
+            await _send_verification_prompt(user_id, welcome)
         else:
             await message.reply_text("⏳ 验证尝试过于频繁，请5分钟后再试。")
 
