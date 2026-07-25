@@ -5,10 +5,12 @@
 
 import json
 import random
+import urllib.parse
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.bot import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from core.bot import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
 from core.database import Database
+from core.http import HttpClient
 from core.logger import get_logger
 
 logger = get_logger("services.verify")
@@ -43,11 +45,36 @@ VERIFICATION_TTL = 604800  # 验证有效期 7 天
 class VerifyService:
     """验证服务 — 本地题库验证。"""
 
-    def __init__(self, db: Database, bot: Bot):
+    def __init__(
+        self,
+        db: Database,
+        bot: Bot,
+        http: Optional[HttpClient] = None,
+        provider: str = "quiz",
+        hcaptcha_site_key: str = "",
+        hcaptcha_secret: str = "",
+        hcaptcha_webapp_url: str = "",
+        hcaptcha_verify_url: str = "https://api.hcaptcha.com/siteverify",
+    ):
         self.db = db
         self.bot = bot
+        self.http = http
+        self.provider = provider
+        self.hcaptcha_site_key = hcaptcha_site_key
+        self.hcaptcha_secret = hcaptcha_secret
+        self.hcaptcha_webapp_url = hcaptcha_webapp_url
+        self.hcaptcha_verify_url = hcaptcha_verify_url
         # 内存中存储活跃验证挑战
         self._challenges: Dict[str, Dict[str, Any]] = {}
+
+    def is_hcaptcha_enabled(self) -> bool:
+        """Return True when hCaptcha should replace the local quiz."""
+        return (
+            self.provider == "hcaptcha"
+            and bool(self.hcaptcha_site_key)
+            and bool(self.hcaptcha_secret)
+            and bool(self.hcaptcha_webapp_url)
+        )
 
     @staticmethod
     def generate_keyboard(question: Dict[str, Any]) -> InlineKeyboardMarkup:
@@ -59,6 +86,63 @@ class VerifyService:
         # 每行 2 个
         rows = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
         return InlineKeyboardMarkup(inline_keyboard=rows)
+
+    def generate_hcaptcha_keyboard(self, user_id: int) -> InlineKeyboardMarkup:
+        """Build a Telegram Web App button for the configured hCaptcha page."""
+        params = urllib.parse.urlencode({
+            "uid": str(user_id),
+            "sitekey": self.hcaptcha_site_key,
+        })
+        sep = "&" if "?" in self.hcaptcha_webapp_url else "?"
+        url = f"{self.hcaptcha_webapp_url}{sep}{params}"
+        return InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(
+                text="完成人机验证",
+                web_app=WebAppInfo(url=url),
+            )
+        ]])
+
+    @staticmethod
+    def extract_hcaptcha_token(payload: str) -> str:
+        """Extract hCaptcha token from Telegram Web App data."""
+        try:
+            data = json.loads(payload or "{}")
+        except json.JSONDecodeError:
+            return ""
+        token = data.get("hcaptcha_token") or data.get("token") or data.get("response")
+        return str(token).strip() if token else ""
+
+    async def verify_hcaptcha_token(self, token: str, remote_ip: str = "") -> Dict[str, Any]:
+        """Verify an hCaptcha response token against hCaptcha siteverify."""
+        if not token:
+            return {"success": False, "reason": "missing_token", "message": "验证令牌为空，请重试"}
+        if not self.http:
+            return {"success": False, "reason": "http_unavailable", "message": "验证服务不可用，请稍后重试"}
+
+        payload: Dict[str, Any] = {
+            "secret": self.hcaptcha_secret,
+            "response": token,
+        }
+        if self.hcaptcha_site_key:
+            payload["sitekey"] = self.hcaptcha_site_key
+        if remote_ip:
+            payload["remoteip"] = remote_ip
+
+        try:
+            result = await self.http.post_form(self.hcaptcha_verify_url, payload)
+        except Exception as exc:
+            logger.error("hcaptcha_verify_failed", {"error": str(exc)})
+            return {"success": False, "reason": "verify_error", "message": "验证服务异常，请稍后重试"}
+
+        if result.get("success") is True:
+            return {"success": True}
+
+        return {
+            "success": False,
+            "reason": "invalid_token",
+            "message": "人机验证失败，请重新验证",
+            "error_codes": result.get("error-codes", []),
+        }
 
     def create_challenge(self, user_id: int) -> Tuple[str, Dict[str, Any]]:
         """创建新的验证挑战，返回 (challenge_id, question)。"""
