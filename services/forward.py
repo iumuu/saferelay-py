@@ -102,28 +102,30 @@ class ForwardService:
                 return None
 
     async def delete_by_admin_reply(self, message: Message) -> bool:
-        """管理员回复转发消息发送 /del，删除转发消息并尝试删除用户原消息。"""
+        """管理员回复自己发出的消息发送 /del，删除用户侧对应的 Bot 消息。
+
+        这里处理的是：管理员在话题里回复用户 -> Bot 复制给用户 的消息映射。
+        管理员需要回复自己之前发出的那条管理员消息，再发送 /del 或 /delete。
+        """
         reply = message.reply_to_message
         if not reply:
             return False
-        mapping = await self.db.get_forward_mapping(reply.id)
+        mapping = await self.db.get_reply_mapping(reply.id)
         if not mapping:
-            logger.warn("delete_admin_mapping_missing", {"reply_msg_id": reply.id})
+            logger.warn("delete_admin_reply_mapping_missing", {"admin_msg_id": reply.id})
             return False
-        ok = False
         try:
-            await self.bot.delete_messages(mapping.get("target_chat") or self.group_id, mapping["fwd_msg_id"])
-            ok = True
+            await self.bot.delete_messages(mapping["guest_chat"], mapping["guest_msg_id"])
+            await self.db.delete_reply_mapping(mapping["admin_msg_id"])
+            logger.info("delete_admin_sent_message_ok", {
+                "admin_msg_id": mapping["admin_msg_id"],
+                "guest_chat": mapping["guest_chat"],
+                "guest_msg_id": mapping["guest_msg_id"],
+            })
+            return True
         except Exception as e:
-            logger.error("delete_admin_forward_failed", {"fwd_msg_id": mapping["fwd_msg_id"], "error": str(e)})
-        try:
-            await self.bot.delete_messages(mapping["source_chat"], mapping["source_msg_id"])
-        except Exception as e:
-            logger.warn("delete_admin_source_failed", {"source_chat": mapping["source_chat"], "source_msg_id": mapping["source_msg_id"], "error": str(e)})
-        if ok:
-            await self.db.delete_forward_mapping(mapping["fwd_msg_id"])
-            logger.info("delete_admin_forward_ok", {"fwd_msg_id": mapping["fwd_msg_id"]})
-        return ok
+            logger.error("delete_admin_sent_message_failed", {"mapping": mapping, "error": str(e)})
+            return False
 
     # ---- 管理员回复 ----
 

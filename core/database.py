@@ -280,6 +280,12 @@ class Database:
                 }
             return None
 
+    async def delete_reply_mapping(self, admin_msg_id: int) -> None:
+        """删除管理员回复映射。"""
+        await self._execute(
+            delete(ReplyMapping).where(ReplyMapping.admin_msg_id == admin_msg_id)
+        )
+
     # ---- 黑白名单 ----
 
     async def is_banned(self, user_id: int) -> bool:

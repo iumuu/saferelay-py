@@ -264,10 +264,10 @@ def register(
         text = (message.text or "").strip()
         command = text.split()[0].split("@", 1)[0].lower() if text.startswith("/") else ""
 
-        # 管理员删除转发消息：在群里回复某条转发消息发送 /del 或 /delete
+        # 管理员撤回自己发给用户的消息：回复自己之前发出的那条消息发送 /del 或 /delete
         if command in ("/del", "/delete"):
             ok = await forward_svc.delete_by_admin_reply(message)
-            await message.reply_text("✅ 已删除对应消息" if ok else "⚠️ 未找到对应消息映射，请确认是回复机器人转发的消息。")
+            await message.reply_text("✅ 已删除用户侧对应消息" if ok else "⚠️ 未找到对应消息映射：请回复你自己之前发给用户的那条消息。")
             return
 
         # 避免未知 /命令 被当作管理员回复转发给用户
