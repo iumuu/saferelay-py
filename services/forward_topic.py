@@ -137,13 +137,20 @@ class TopicManager:
             logger.error("check_forum_failed", {"group_id": self.group_id, "error": str(e)})
             return None
 
+        username = ""
         display_name = ""
         if profile:
+            username = (profile.get("username") or "").strip()
             display_name = f"{profile.get('first_name', '')} {profile.get('last_name', '')}".strip()
-        if not display_name:
-            display_name = "访客"
 
-        title = f"{display_name}（{user_id}）"[:60]
+        if username:
+            title_name = f"@{username}"
+        elif display_name:
+            title_name = display_name
+        else:
+            title_name = "访客"
+
+        title = f"{title_name}（{user_id}）"[:60]
 
         try:
             topic = await self.bot.create_forum_topic(self.group_id, title)
@@ -158,10 +165,14 @@ class TopicManager:
             welcome_lines = [
                 "👤 新访客对话",
                 f"UID：<code>{user_id}</code>",
+                f"资料：<a href=\"tg://user?id={user_id}\">打开用户资料</a>",
             ]
             if profile:
                 if profile.get("username"):
                     welcome_lines.append(f"用户名：@{profile['username']}")
+                full_name = f"{profile.get('first_name', '')} {profile.get('last_name', '')}".strip()
+                if full_name:
+                    welcome_lines.append(f"昵称：{full_name}")
             welcome_lines.append("\n请在此话题内回复用户消息。")
 
             await self.bot.send_message(
