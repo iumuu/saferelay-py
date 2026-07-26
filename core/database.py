@@ -217,6 +217,32 @@ class Database:
                 }
             return None
 
+    async def get_forward_by_source(self, source_chat: int, source_msg_id: int) -> Optional[Dict[str, Any]]:
+        """根据源聊天和源消息 ID 获取转发映射。"""
+        async with self._session() as session:
+            result = await session.execute(
+                select(ForwardMapping).where(
+                    ForwardMapping.source_chat == source_chat,
+                    ForwardMapping.source_msg_id == source_msg_id,
+                )
+            )
+            row = result.scalar_one_or_none()
+            if row:
+                return {
+                    "fwd_msg_id": row.fwd_msg_id,
+                    "source_chat": row.source_chat,
+                    "source_msg_id": row.source_msg_id,
+                    "target_chat": row.target_chat,
+                    "thread_id": row.thread_id,
+                }
+            return None
+
+    async def delete_forward_mapping(self, fwd_msg_id: int) -> None:
+        """删除转发映射。"""
+        await self._execute(
+            delete(ForwardMapping).where(ForwardMapping.fwd_msg_id == fwd_msg_id)
+        )
+
     async def get_original_mapping(self, orig_msg_id: int) -> Optional[int]:
         """根据原始消息 ID 获取转发后的消息 ID。"""
         row = await self._fetchone(
