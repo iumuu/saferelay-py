@@ -12,7 +12,7 @@ from core.bot import Bot, ParseMode
 from core.database import Database
 from core.http import HttpClient
 from core.logger import get_logger, init_logger
-from services.hcaptcha_webapp import HcaptchaWebAppServer
+from services.forward import ForwardService
 
 logger = get_logger("main")
 
