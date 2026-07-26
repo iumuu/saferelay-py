@@ -13,6 +13,7 @@ from core.database import Database
 from core.http import HttpClient
 from core.logger import get_logger, init_logger
 from services.forward import ForwardService
+from services.hcaptcha_webapp import HcaptchaWebAppServer
 
 logger = get_logger("main")
 
@@ -66,6 +67,7 @@ async def amain() -> None:
 
     # 导入并注册 handler（延迟导入避免循环依赖）
     from services.forward import ForwardService
+    from services.hcaptcha_webapp import HcaptchaWebAppServer
     from services.security import SecurityService
     from services.stats import StatsService
     from services.verify import VerifyService
