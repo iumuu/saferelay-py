@@ -51,12 +51,13 @@ class Bot:
             name="saferelay",
             bot_token=bot_token,
             api_id=api_id or 6,
-            api_hash=api_hash or "",
+            api_hash=api_hash or "eb06d4abfb49dc3eeb1aeb98ae0f581e",
             in_memory=True,
         )
         if proxy:
             kwargs["proxy"] = proxy
         self._client = _PyroClient(**kwargs)
+        self._started = False
         self._protect_user_content = protect_user_content
         self._protect_user_content_getter = protect_user_content_getter
 
@@ -257,10 +258,15 @@ class Bot:
         """启动 bot（异步，用于嵌入已有事件循环）。"""
         logger.info("bot_starting", {"token_preview": self._token[:8] + "..."})
         await self._client.start()
+        self._started = True
 
     async def stop(self) -> None:
         """停止 bot。"""
+        if not self._started:
+            logger.info("bot_stop_skipped", {"reason": "not_started"})
+            return
         logger.info("bot_stopping")
+        self._started = False
         await self._client.stop()
 
     async def restart(self) -> None:
