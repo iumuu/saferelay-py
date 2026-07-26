@@ -261,10 +261,18 @@ def register(
             "thread_id": message.message_thread_id,
             "has_reply": message.reply_to_message is not None,
         })
-        # 管理员删除转发消息：在群里回复某条转发消息发送 /del
-        if (message.text or "").strip().split()[0:1] == ["/del"]:
+        text = (message.text or "").strip()
+        command = text.split()[0].split("@", 1)[0].lower() if text.startswith("/") else ""
+
+        # 管理员删除转发消息：在群里回复某条转发消息发送 /del 或 /delete
+        if command in ("/del", "/delete"):
             ok = await forward_svc.delete_by_admin_reply(message)
             await message.reply_text("✅ 已删除对应消息" if ok else "⚠️ 未找到对应消息映射，请确认是回复机器人转发的消息。")
+            return
+
+        # 避免未知 /命令 被当作管理员回复转发给用户
+        if command:
+            await message.reply_text("⚠️ 未识别的管理命令，未转发给用户。")
             return
 
         await forward_svc.handle_admin_reply(message)
