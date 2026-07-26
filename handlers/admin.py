@@ -5,9 +5,7 @@ from typing import Any, List, Optional
 from core.bot import ParseMode, Bot, InlineKeyboardButton, InlineKeyboardMarkup, Message, filters
 from core.database import Database
 from core.logger import get_logger
-from services.forward import ForwardService
-from services.security import SecurityService
-from services.stats import StatsService
+from services.menu import build_main_menu
 
 logger = get_logger("handlers.admin")
 
@@ -31,31 +29,7 @@ def register(
     async def on_menu(client: Any, message: Message) -> None:
         """显示管理面板。"""
         logger.info("admin_menu", {"admin_id": message.from_user.id if message.from_user else 0})
-        welcome_msg = await db.get_config(CONFIG_WELCOME_MSG, "")
-        auto_reply = await db.get_config(CONFIG_AUTO_REPLY_MSG, "")
-        spam_enabled = await security_svc.is_spam_enabled()
-
-        text = (
-            f"🛠 <b>SafeRelay 管理面板</b>\n\n"
-            f"📊 <b>当前配置:</b>\n"
-            f"🔸 📝 验证模式：本地题库\n"
-            f"🔸 {'🟢' if spam_enabled else '🔴'} 垃圾过滤：{'已开启' if spam_enabled else '已关闭'}\n"
-            f"🔸 {'🟢' if welcome_msg else '⚪️'} 欢迎消息：{'已设置' if welcome_msg else '未设置'}\n"
-            f"🔸 {'🟢' if auto_reply else '⚪️'} 自动回复：{'已设置' if auto_reply else '未设置'}\n"
-            f"🔸 💬 转发模式：群聊话题\n\n"
-            f"👇 点击下方按钮进入设置"
-        )
-
-        keyboard = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton("🗑 垃圾过滤", callback_data="submenu_spam"),
-                 InlineKeyboardButton("👥 用户管理", callback_data="submenu_users")],
-                [InlineKeyboardButton("👋 欢迎消息", callback_data="submenu_welcome"),
-                 InlineKeyboardButton("🤖 自动回复", callback_data="submenu_autoreply")],
-                [InlineKeyboardButton("📊 统计信息", callback_data="submenu_stats"),
-                 InlineKeyboardButton("🔄 重启 Bot", callback_data="restart_bot")],
-            ]
-        )
+        text, keyboard = await build_main_menu(db, forward_svc, security_svc)
         await message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=keyboard)
 
     ### ---- /help (admin) ---- ###
@@ -76,8 +50,7 @@ def register(
             "/trust - 信任用户(白名单)\n"
             "/untrust - 取消信任\n\n"
             "<b>消息设置：</b>\n"
-            "/welcome - 欢迎消息\n"
-            "/autoreply - 自动回复\n\n"
+            "/del /delete - 撤回你发给用户的消息（在话题里回复自己发出的那条消息后发送）\n\n"
             "<b>系统：</b>\n"
             "/cleanup - 清理失效话题\n"
             "/cachestats - 查看缓存统计\n"
@@ -272,6 +245,7 @@ def register(
 
         # 避免未知 /命令 被当作管理员回复转发给用户
         if command:
+            await message.reply_text("⚠️ 未识别的管理命令，请检查 /help 或 /menu。")
             return
 
         await forward_svc.handle_admin_reply(message)
