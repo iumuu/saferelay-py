@@ -86,16 +86,6 @@ def register(
         if user_id in forward_svc.admin_ids:
             return
 
-        # 用户删除转发消息：回复自己已发送的消息发送 /del
-        if (message.text or "").strip().split()[0:1] == ["/del"]:
-            reply = message.reply_to_message
-            if not reply:
-                await message.reply_text("请回复要撤回的那条消息发送 /del")
-                return
-            ok = await forward_svc.delete_by_guest_message(user_id, reply.id)
-            await message.reply_text("✅ 已删除管理员侧对应消息" if ok else "⚠️ 未找到对应消息，可能尚未转发或映射已清理。")
-            return
-
         # 白名单用户直接转发
         if await security_svc.is_whitelisted(user_id):
             logger.info("whitelist_hit", {"user_id": user_id})

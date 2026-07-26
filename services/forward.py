@@ -101,21 +101,6 @@ class ForwardService:
                 logger.error("copy_fallback_failed", {"user_id": user_id, "error": str(e2)})
                 return None
 
-    async def delete_by_guest_message(self, user_id: int, source_msg_id: int) -> bool:
-        """用户请求删除自己消息对应的管理员群转发消息。"""
-        mapping = await self.db.get_forward_by_source(user_id, source_msg_id)
-        if not mapping or not mapping.get("target_chat") or not mapping.get("fwd_msg_id"):
-            logger.warn("delete_guest_mapping_missing", {"user_id": user_id, "source_msg_id": source_msg_id})
-            return False
-        try:
-            await self.bot.delete_messages(mapping["target_chat"], mapping["fwd_msg_id"])
-            await self.db.delete_forward_mapping(mapping["fwd_msg_id"])
-            logger.info("delete_guest_forward_ok", {"user_id": user_id, "fwd_msg_id": mapping["fwd_msg_id"]})
-            return True
-        except Exception as e:
-            logger.error("delete_guest_forward_failed", {"user_id": user_id, "source_msg_id": source_msg_id, "error": str(e)})
-            return False
-
     async def delete_by_admin_reply(self, message: Message) -> bool:
         """管理员回复转发消息发送 /del，删除转发消息并尝试删除用户原消息。"""
         reply = message.reply_to_message
