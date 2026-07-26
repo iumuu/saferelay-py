@@ -59,16 +59,30 @@ class ForwardService:
                    "username": messages[0].from_user.username if messages[0].from_user else ""}
         topic = await self.ensure_user_topic(user_id, profile)
         if topic and topic.get("thread_id"):
-            await self._forward_to_topic(messages, user_id, topic["thread_id"])
+            ok = await self._forward_to_topic(messages, user_id, topic["thread_id"])
+            if ok:
+                return
+            logger.warn("topic_forward_failed_retry_recreate", {"user_id": user_id, "old_thread_id": topic.get("thread_id")})
+            await self.db.remove_user_topic_by_user(user_id)
+            await self.db.remove_thread_mapping(topic["thread_id"])
+            topic = await self.ensure_user_topic(user_id, profile)
+            if topic and topic.get("thread_id"):
+                await self._forward_to_topic(messages, user_id, topic["thread_id"])
+                return
+            logger.error("topic_forward_retry_failed_no_thread", {"user_id": user_id})
         else:
             logger.error("topic_forward_failed_no_thread", {"user_id": user_id})
 
-    async def _forward_to_topic(self, messages: List[Message], user_id: int, thread_id: int) -> None:
-        """转发消息到话题。"""
+    async def _forward_to_topic(self, messages: List[Message], user_id: int, thread_id: int) -> bool:
+        """转发消息到话题，返回是否至少成功转发一条。"""
         target = {"chat_id": self.group_id, "message_thread_id": thread_id, "label": "topic"}
         logger.info("forward_to_topic", {"user_id": user_id, "thread_id": thread_id, "group_id": self.group_id})
+        ok = False
         for msg in messages:
-            await self._forward_single(msg, user_id, target)
+            sent = await self._forward_single(msg, user_id, target)
+            if sent:
+                ok = True
+        return ok
 
     async def _forward_single(self, msg: Message, user_id: int, target: Dict[str, Any]) -> Optional[Message]:
         """转发单条消息。"""

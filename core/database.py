@@ -148,6 +148,18 @@ class Database:
             )
         )
 
+    async def remove_user_topic_by_user(self, user_id: int) -> None:
+        """按用户 ID 移除话题映射。"""
+        await self._execute(
+            delete(TopicMapping).where(TopicMapping.user_id == user_id)
+        )
+
+    async def remove_thread_mapping(self, thread_id: int) -> None:
+        """移除线程映射。"""
+        await self._execute(
+            delete(ThreadMapping).where(ThreadMapping.thread_id == thread_id)
+        )
+
     async def get_user_by_thread(self, thread_id: int) -> Optional[int]:
         """通过话题 ID 获取用户 ID。"""
         # 优先查 thread_mapping
