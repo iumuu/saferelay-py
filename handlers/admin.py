@@ -5,7 +5,10 @@ from typing import Any, List, Optional
 from core.bot import ParseMode, Bot, InlineKeyboardButton, InlineKeyboardMarkup, Message, filters
 from core.database import Database
 from core.logger import get_logger
+from services.forward import ForwardService
 from services.menu import build_main_menu
+from services.security import SecurityService
+from services.stats import StatsService
 
 logger = get_logger("handlers.admin")
 
