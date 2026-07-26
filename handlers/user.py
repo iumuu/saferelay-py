@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from core.bot import ParseMode, Bot, Message, filters
+from core.bot import ParseMode, Bot, Message, ReplyKeyboardRemove, filters
 from core.database import Database
 from core.logger import get_logger
 from services.forward import ForwardService
@@ -32,7 +32,7 @@ def register(
         success_text = "✅ 验证成功！您现在可以发送消息给管理员了。"
         if pending_result["forwarded"] > 0:
             success_text = f"✅ 验证成功！\n\n📨 刚才的 {pending_result['forwarded']} 条消息已送达管理员。"
-        await bot.send_message(user_id, success_text)
+        await bot.send_message(user_id, success_text, reply_markup=ReplyKeyboardRemove())
         await stats_svc.record_active_user(user_id)
 
         if forward_svc.admin_uid and message.from_user:
@@ -116,6 +116,7 @@ def register(
 
         web_app_data = getattr(message, "web_app_data", None)
         if web_app_data and verify_svc.is_hcaptcha_enabled():
+            logger.info("hcaptcha_webapp_data_received", {"user_id": user_id})
             token = verify_svc.extract_hcaptcha_token(getattr(web_app_data, "data", ""))
             result = await verify_svc.verify_hcaptcha_token(token)
             if result["success"]:

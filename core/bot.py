@@ -16,6 +16,7 @@ from pyrogram.types import (
     User,
     ForumTopic,
     ReplyKeyboardMarkup,
+    KeyboardButton,
     ReplyKeyboardRemove,
     ForceReply,
     WebAppInfo,

@@ -8,7 +8,7 @@ import random
 import urllib.parse
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.bot import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
+from core.bot import Bot, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, Message, ReplyKeyboardMarkup, WebAppInfo
 from core.database import Database
 from core.http import HttpClient
 from core.logger import get_logger
@@ -86,20 +86,29 @@ class VerifyService:
         rows = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
         return InlineKeyboardMarkup(inline_keyboard=rows)
 
-    def generate_hcaptcha_keyboard(self, user_id: int) -> InlineKeyboardMarkup:
-        """Build a Telegram Web App button for the configured hCaptcha page."""
+    def generate_hcaptcha_keyboard(self, user_id: int) -> ReplyKeyboardMarkup:
+        """Build a Telegram Web App reply keyboard for hCaptcha.
+
+        Telegram only delivers WebAppData to the bot for KeyboardButton.web_app
+        buttons in a ReplyKeyboardMarkup. InlineKeyboardButton.web_app opens the
+        page but does not send `message.web_app_data` to the bot via sendData().
+        """
         params = urllib.parse.urlencode({
             "uid": str(user_id),
             "sitekey": self.hcaptcha_site_key,
         })
         sep = "&" if "?" in self.hcaptcha_webapp_url else "?"
         url = f"{self.hcaptcha_webapp_url}{sep}{params}"
-        return InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(
-                text="完成人机验证",
-                web_app=WebAppInfo(url=url),
-            )
-        ]])
+        return ReplyKeyboardMarkup(
+            keyboard=[[
+                KeyboardButton(
+                    text="🛡 完成人机验证",
+                    web_app=WebAppInfo(url=url),
+                )
+            ]],
+            resize_keyboard=True,
+            one_time_keyboard=True,
+        )
 
     @staticmethod
     def extract_hcaptcha_token(payload: str) -> str:
