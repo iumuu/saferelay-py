@@ -272,7 +272,6 @@ def register(
 
         # 避免未知 /命令 被当作管理员回复转发给用户
         if command:
-            await message.reply_text("⚠️ 未识别的管理命令，未转发给用户。")
             return
 
         await forward_svc.handle_admin_reply(message)
