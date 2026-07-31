@@ -2,6 +2,7 @@
 
 仅供 handlers/callback.py 使用，将菜单构建逻辑从 handler 中剥离。
 """
+import html
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.bot import InlineKeyboardButton, InlineKeyboardMarkup
@@ -139,14 +140,85 @@ async def build_autoreply_menu(
 
 
 async def build_users_menu(
-    db: Database,
+    db: Database, page: int = 0,
 ) -> Tuple[str, InlineKeyboardMarkup]:
-    """构建用户管理菜单。"""
-    total = await db.get_verified_count()
-    text = f"👥 <b>用户管理</b>\n\n📊 已验证用户: {total}\n\n💡 使用 /ban、/trust 等命令管理用户"
+    """构建可分页的用户管理菜单。"""
+    users = await db.get_managed_users()
+    page_size = 8
+    total = len(users)
+    pages = max(1, (total + page_size - 1) // page_size)
+    page = max(0, min(page, pages - 1))
+    page_users = users[page * page_size:(page + 1) * page_size]
+
+    text = (
+        f"👥 <b>用户管理</b>\n\n"
+        f"已知用户：<b>{total}</b>　页码：<b>{page + 1}/{pages}</b>\n"
+        f"点击用户查看资料，并可直接管理黑名单和白名单。"
+    )
+    rows = []
+    for item in page_users:
+        name = item.get("display_name") or "访客"
+        if len(name) > 16:
+            name = name[:15] + "…"
+        flags = ""
+        if item.get("banned"):
+            flags += " 🚫"
+        if item.get("whitelisted"):
+            flags += " ⭐"
+        rows.append([InlineKeyboardButton(
+            f"{name} · {item['user_id']}{flags}",
+            callback_data=f"user_view:{item['user_id']}:{page}",
+        )])
+
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton("⬅️ 上一页", callback_data=f"users_page:{page - 1}"))
+    if page + 1 < pages:
+        nav.append(InlineKeyboardButton("下一页 ➡️", callback_data=f"users_page:{page + 1}"))
+    if nav:
+        rows.append(nav)
+    rows.append([InlineKeyboardButton("🔄 刷新", callback_data=f"users_page:{page}")])
+    rows.append([InlineKeyboardButton("◀️ 返回主菜单", callback_data="back_to_main")])
+    return text, InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+async def build_user_detail(
+    db: Database, bot: Any, user_id: int, page: int = 0,
+) -> Tuple[str, InlineKeyboardMarkup]:
+    """构建用户资料和操作按钮。"""
+    banned = await db.is_banned(user_id)
+    whitelisted = await db.is_whitelisted(user_id)
+    verified = await db.is_verified(user_id)
+    name = "未知"
+    username = ""
+    try:
+        user = await bot.get_users(user_id)
+        if user:
+            name = f"{user.first_name or ''} {user.last_name or ''}".strip() or "未知"
+            username = user.username or ""
+    except Exception:
+        pass
+
+    username_line = f"\n用户名：@{html.escape(username)}" if username else ""
+    text = (
+        f"👤 <b>用户资料</b>\n\n"
+        f"UID：<code>{user_id}</code>\n"
+        f"昵称：{html.escape(name)}{username_line}\n"
+        f"资料：<a href=\"tg://user?id={user_id}\">打开用户资料</a>\n\n"
+        f"验证状态：{'✅ 已验证' if verified else '⚪️ 未验证'}\n"
+        f"黑名单：{'🚫 已拉黑' if banned else '✅ 正常'}\n"
+        f"白名单：{'⭐ 已加入' if whitelisted else '⚪️ 未加入'}"
+    )
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton("🔄 刷新", callback_data="refresh_users")],
-        [InlineKeyboardButton("◀️ 返回主菜单", callback_data="back_to_main")],
+        [InlineKeyboardButton(
+            "✅ 解除拉黑" if banned else "🚫 拉入黑名单",
+            callback_data=f"user_unban:{user_id}:{page}" if banned else f"user_ban:{user_id}:{page}",
+        )],
+        [InlineKeyboardButton(
+            "移出白名单" if whitelisted else "⭐ 加入白名单",
+            callback_data=f"user_untrust:{user_id}:{page}" if whitelisted else f"user_trust:{user_id}:{page}",
+        )],
+        [InlineKeyboardButton("◀️ 返回用户列表", callback_data=f"users_page:{page}")],
     ])
     return text, keyboard
 

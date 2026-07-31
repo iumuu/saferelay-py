@@ -453,6 +453,48 @@ class Database:
         row = await self._fetchone(select(func.count(VerifiedUser.user_id)))
         return row or 0
 
+    async def get_managed_users(self) -> List[Dict[str, Any]]:
+        """获取所有已知用户，并合并验证、话题、黑名单和白名单状态。"""
+        async with self._session() as session:
+            verified_rows = (await session.execute(select(VerifiedUser))).scalars().all()
+            topic_rows = (await session.execute(select(TopicMapping))).scalars().all()
+            banned_rows = (await session.execute(select(BannedUser))).scalars().all()
+            whitelist_rows = (await session.execute(select(WhitelistUser))).scalars().all()
+
+            users: Dict[int, Dict[str, Any]] = {}
+            for row in verified_rows:
+                users[row.user_id] = {
+                    "user_id": row.user_id,
+                    "display_name": row.display_name or "",
+                    "verified": True,
+                    "verified_at": row.verified_at,
+                    "banned": False,
+                    "whitelisted": False,
+                }
+            for row in topic_rows:
+                users.setdefault(row.user_id, {
+                    "user_id": row.user_id, "display_name": "", "verified": False,
+                    "verified_at": 0, "banned": False, "whitelisted": False,
+                })
+            for row in banned_rows:
+                item = users.setdefault(row.user_id, {
+                    "user_id": row.user_id, "display_name": "", "verified": False,
+                    "verified_at": 0, "banned": False, "whitelisted": False,
+                })
+                item["banned"] = True
+            for row in whitelist_rows:
+                item = users.setdefault(row.user_id, {
+                    "user_id": row.user_id, "display_name": "", "verified": False,
+                    "verified_at": 0, "banned": False, "whitelisted": False,
+                })
+                item["whitelisted"] = True
+
+            return sorted(
+                users.values(),
+                key=lambda item: (item["verified_at"], item["user_id"]),
+                reverse=True,
+            )
+
     # ---- 配置 ----
 
     async def get_config(self, key: str, default: str = "") -> str:

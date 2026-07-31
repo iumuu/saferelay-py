@@ -10,7 +10,7 @@ from services.forward import ForwardService
 from services.menu import (
     build_main_menu, build_spam_menu,
     build_welcome_menu, build_autoreply_menu,
-    build_users_menu, build_stats_menu,
+    build_users_menu, build_user_detail, build_stats_menu,
     build_protect_menu, build_verify_menu,
 )
 from services.security import SecurityService
@@ -192,6 +192,49 @@ def register(
         if data == "refresh_users":
             await callback.answer("已刷新")
             return await _show_submenu("submenu_users", callback)
+
+        if data.startswith("users_page:"):
+            try:
+                page = int(data.split(":", 1)[1])
+            except ValueError:
+                page = 0
+            text, keyboard = await build_users_menu(db, page)
+            await bot.edit_message_text(chat_id, msg_id, text, parse_mode=ParseMode.HTML, reply_markup=keyboard)
+            await callback.answer()
+            return
+
+        if data.startswith("user_") and ":" in data:
+            parts = data.split(":")
+            action = parts[0]
+            try:
+                target_id = int(parts[1])
+                page = int(parts[2]) if len(parts) > 2 else 0
+            except (ValueError, IndexError):
+                await callback.answer("无效的用户操作", show_alert=True)
+                return
+
+            if action == "user_ban":
+                await security_svc.ban_user(target_id)
+                await security_svc.remove_whitelist(target_id)
+                await db.remove_verified(target_id)
+                await callback.answer("已拉入黑名单")
+            elif action == "user_unban":
+                await security_svc.unban_user(target_id)
+                await callback.answer("已解除拉黑")
+            elif action == "user_trust":
+                await security_svc.unban_user(target_id)
+                await security_svc.add_whitelist(target_id)
+                await callback.answer("已加入白名单")
+            elif action == "user_untrust":
+                await security_svc.remove_whitelist(target_id)
+                await callback.answer("已移出白名单")
+            elif action != "user_view":
+                await callback.answer("未知操作", show_alert=True)
+                return
+
+            text, keyboard = await build_user_detail(db, bot, target_id, page)
+            await bot.edit_message_text(chat_id, msg_id, text, parse_mode=ParseMode.HTML, reply_markup=keyboard)
+            return
 
         if data == "restart_bot":
             logger.info("restart_bot_requested", {"admin_id": user_id})
