@@ -2,7 +2,7 @@
 
 from typing import Any, List, Optional
 
-from core.bot import ParseMode, Bot, InlineKeyboardButton, InlineKeyboardMarkup, Message, filters
+from core.bot import ParseMode, Bot, InlineKeyboardButton, InlineKeyboardMarkup, Message, ReplyKeyboardRemove, filters
 from core.database import Database
 from core.logger import get_logger
 from services.forward import ForwardService
@@ -32,6 +32,13 @@ def register(
     async def on_menu(client: Any, message: Message) -> None:
         """显示管理面板。"""
         logger.info("admin_menu", {"admin_id": message.from_user.id if message.from_user else 0})
+        # 先移除私聊中可能残留的人机验证 ReplyKeyboard。
+        if message.chat and str(getattr(message.chat, "type", "")).lower().endswith("private"):
+            cleanup = await message.reply_text("正在打开管理面板…", reply_markup=ReplyKeyboardRemove())
+            try:
+                await cleanup.delete()
+            except Exception:
+                pass
         text, keyboard = await build_main_menu(db, forward_svc, security_svc)
         await message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=keyboard)
 

@@ -75,7 +75,34 @@ def register(
             reply_markup=verify_svc.generate_keyboard(question),
         )
 
-    @bot.on_message(filters.private & ~filters.command(["start", "help", "menu"]))
+    # WebAppData 必须优先、独立处理，避免被普通消息过滤与验证流程干扰。
+    web_app_data_filter = filters.create(
+        lambda _filter, _client, msg: bool(getattr(msg, "web_app_data", None)),
+        "WebAppDataFilter",
+    )
+
+    @bot.on_message(filters.private & web_app_data_filter, group=-1)
+    async def on_hcaptcha_webapp_data(client: Any, message: Message) -> None:
+        """处理 Telegram WebApp 回传的 hCaptcha token。"""
+        user_id = message.from_user.id if message.from_user else message.chat.id
+        if user_id in forward_svc.admin_ids:
+            await bot.send_message(user_id, "👋 管理员无需验证。", reply_markup=ReplyKeyboardRemove())
+            return
+        if not verify_svc.is_hcaptcha_enabled():
+            await bot.send_message(user_id, "当前未启用 hCaptcha 验证。", reply_markup=ReplyKeyboardRemove())
+            return
+
+        logger.info("hcaptcha_webapp_data_received", {"user_id": user_id})
+        token = verify_svc.extract_hcaptcha_token(getattr(message.web_app_data, "data", ""))
+        result = await verify_svc.verify_hcaptcha_token(token)
+        if result["success"]:
+            display_name = message.from_user.first_name or message.from_user.username or "Unknown"
+            await db.mark_verified(user_id, display_name)
+            await _notify_verify_success(user_id, display_name, message)
+        else:
+            await bot.send_message(user_id, result["message"], reply_markup=ReplyKeyboardRemove())
+
+    @bot.on_message(filters.private & ~web_app_data_filter & ~filters.command(["start", "help", "menu"]))
     async def on_guest_message(client: Any, message: Message) -> None:
         """处理用户私聊消息（非命令）。"""
         user_id = message.from_user.id if message.from_user else message.chat.id
@@ -112,19 +139,6 @@ def register(
                 "🚫 <b>服务不可用</b>\n\n您的账号存在异常，无法使用本服务。",
                 parse_mode=ParseMode.HTML,
             )
-            return
-
-        web_app_data = getattr(message, "web_app_data", None)
-        if web_app_data and verify_svc.is_hcaptcha_enabled():
-            logger.info("hcaptcha_webapp_data_received", {"user_id": user_id})
-            token = verify_svc.extract_hcaptcha_token(getattr(web_app_data, "data", ""))
-            result = await verify_svc.verify_hcaptcha_token(token)
-            if result["success"]:
-                display_name = message.from_user.first_name or message.from_user.username or "Unknown"
-                await db.mark_verified(user_id, display_name)
-                await _notify_verify_success(user_id, display_name, message)
-            else:
-                await bot.send_message(user_id, result["message"])
             return
 
         # 已验证用户
@@ -181,19 +195,25 @@ def register(
 
         # 管理员无需验证
         if user_id in forward_svc.admin_ids:
-            await message.reply_text("👋 管理员您好，您无需进行验证。\n\n发送 /menu 打开管理面板。")
+            await message.reply_text(
+                "👋 管理员您好，您无需进行验证。\n\n发送 /menu 打开管理面板。",
+                reply_markup=ReplyKeyboardRemove(),
+            )
             return
 
         # 白名单用户
         if await security_svc.is_whitelisted(user_id):
-            await message.reply_text("👋 欢迎使用 SafeRelay！\n\n您已在白名单中，可以直接发送消息给管理员。")
+            await message.reply_text(
+                "👋 欢迎使用 SafeRelay！\n\n您已在白名单中，可以直接发送消息给管理员。",
+                reply_markup=ReplyKeyboardRemove(),
+            )
             return
 
         # 已验证用户
         if await db.is_verified(user_id):
             auto_reply = await db.get_config(CONFIG_AUTO_REPLY_MSG, "")
             text = auto_reply or "👋 欢迎使用 SafeRelay！\n\n您已通过验证，可以直接发送消息给管理员。"
-            await message.reply_text(text)
+            await message.reply_text(text, reply_markup=ReplyKeyboardRemove())
             return
 
         # 未验证：发送验证

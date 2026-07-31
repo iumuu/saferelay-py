@@ -232,14 +232,46 @@ class Bot:
         """获取论坛话题信息。"""
         return await self._client.get_forum_topic(chat_id, topic_id)
 
-    async def set_commands(self) -> None:
-        """设置 Bot 命令列表。"""
-        from pyrogram.types import BotCommand
-        commands = [
-            BotCommand("menu", "打开管理面板"),
-            BotCommand("help", "显示帮助"),
+    async def set_commands(self, admin_ids: Optional[List[int]] = None, group_id: Optional[int] = None) -> None:
+        """按普通私聊、管理员私聊和管理群分别设置命令菜单。"""
+        from pyrogram.types import (
+            BotCommand,
+            BotCommandScopeDefault,
+            BotCommandScopeChat,
+            BotCommandScopeChatMember,
+        )
+
+        user_commands = [
+            BotCommand("start", "开始使用"),
+            BotCommand("help", "使用帮助"),
         ]
-        await self._client.set_bot_commands(commands)
+        admin_private_commands = [
+            BotCommand("menu", "打开管理面板"),
+            BotCommand("help", "管理员帮助"),
+            BotCommand("broadcast", "广播消息"),
+        ]
+        admin_group_commands = [
+            BotCommand("menu", "打开管理面板"),
+            BotCommand("help", "管理员帮助"),
+            BotCommand("ban", "拉黑当前话题用户"),
+            BotCommand("unban", "解除拉黑"),
+            BotCommand("trust", "加入白名单"),
+            BotCommand("untrust", "移出白名单"),
+            BotCommand("reset", "重置用户验证"),
+            BotCommand("delete", "撤回发给用户的消息"),
+        ]
+
+        await self._client.set_bot_commands(user_commands, scope=BotCommandScopeDefault())
+        for admin_id in admin_ids or []:
+            await self._client.set_bot_commands(
+                admin_private_commands,
+                scope=BotCommandScopeChat(chat_id=admin_id),
+            )
+            if group_id:
+                await self._client.set_bot_commands(
+                    admin_group_commands,
+                    scope=BotCommandScopeChatMember(chat_id=group_id, user_id=admin_id),
+                )
 
     async def send_chat_action(
         self, chat_id: Union[int, str], action: str

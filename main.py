@@ -130,7 +130,7 @@ async def amain() -> None:
                 logger.error("startup_notify_failed", {"admin_id": admin_id, "error": str(e)})
 
         # 注册 Bot 命令列表（需启动后）
-        await bot.set_commands()
+        await bot.set_commands(cfg.config.admin_ids, cfg.config.group_id)
         await idle()
     finally:
         await bot.stop()
