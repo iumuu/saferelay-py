@@ -3,6 +3,7 @@
 topic 模块仅被 services/forward.py 中的 ForwardService 导入使用。
 """
 import asyncio
+import html
 import time
 from typing import Any, Dict, Optional
 
@@ -156,7 +157,9 @@ class TopicManager:
         display_name = ""
         if profile:
             username = (profile.get("username") or "").strip()
-            display_name = f"{profile.get('first_name', '')} {profile.get('last_name', '')}".strip()
+            first_name = profile.get("first_name") or ""
+            last_name = profile.get("last_name") or ""
+            display_name = f"{first_name} {last_name}".strip()
 
         if username:
             title_name = f"@{username}"
@@ -177,18 +180,15 @@ class TopicManager:
             await self.db.set_user_topic(user_id, new_thread_id)
             await self.db.set_thread_mapping(new_thread_id, user_id)
 
+            first_name = (profile or {}).get("first_name") or ""
+            last_name = (profile or {}).get("last_name") or ""
+            full_name = f"{first_name} {last_name}".strip() or "未知用户"
             welcome_lines = [
                 "👤 新访客对话",
                 f"UID：<code>{user_id}</code>",
-                f"资料：<a href=\"tg://user?id={user_id}\">打开用户资料</a>",
+                f"昵称：<a href=\"tg://user?id={user_id}\">{html.escape(full_name)}</a>",
+                "\n请在此话题内回复用户消息。",
             ]
-            if profile:
-                if profile.get("username"):
-                    welcome_lines.append(f"用户名：@{profile['username']}")
-                full_name = f"{profile.get('first_name', '')} {profile.get('last_name', '')}".strip()
-                if full_name:
-                    welcome_lines.append(f"昵称：{full_name}")
-            welcome_lines.append("\n请在此话题内回复用户消息。")
 
             await self.bot.send_message(
                 self.group_id,
