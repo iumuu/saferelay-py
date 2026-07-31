@@ -190,21 +190,17 @@ async def build_user_detail(
     whitelisted = await db.is_whitelisted(user_id)
     verified = await db.is_verified(user_id)
     name = "未知"
-    username = ""
     try:
         user = await bot.get_users(user_id)
         if user:
             name = f"{user.first_name or ''} {user.last_name or ''}".strip() or "未知"
-            username = user.username or ""
     except Exception:
         pass
 
-    username_line = f"\n用户名：@{html.escape(username)}" if username else ""
     text = (
         f"👤 <b>用户资料</b>\n\n"
         f"UID：<code>{user_id}</code>\n"
-        f"昵称：{html.escape(name)}{username_line}\n"
-        f"资料：<a href=\"tg://user?id={user_id}\">打开用户资料</a>\n\n"
+        f"昵称：<a href=\"tg://user?id={user_id}\">{html.escape(name)}</a>\n\n"
         f"验证状态：{'✅ 已验证' if verified else '⚪️ 未验证'}\n"
         f"黑名单：{'🚫 已拉黑' if banned else '✅ 正常'}\n"
         f"白名单：{'⭐ 已加入' if whitelisted else '⚪️ 未加入'}"
