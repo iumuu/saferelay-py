@@ -179,6 +179,11 @@ def register(
         user_id = message.from_user.id if message.from_user else message.chat.id
         logger.info("start_command", {"user_id": user_id})
 
+        # 管理员无需验证
+        if user_id in forward_svc.admin_ids:
+            await message.reply_text("👋 管理员您好，您无需进行验证。\n\n发送 /menu 打开管理面板。")
+            return
+
         # 白名单用户
         if await security_svc.is_whitelisted(user_id):
             await message.reply_text("👋 欢迎使用 SafeRelay！\n\n您已在白名单中，可以直接发送消息给管理员。")
