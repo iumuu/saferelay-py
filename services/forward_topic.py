@@ -92,10 +92,25 @@ class TopicManager:
         if not self.group_id:
             return None
 
-        # 检查已有映射
+        # 检查已有映射，并主动确认 Telegram 话题仍然存在。
+        # 已删除话题有时不会导致发送报错，而会把消息送到 General，
+        # 因此不能只依赖转发失败来判断映射失效。
         thread_id = await self.db.get_user_topic(user_id)
         if thread_id:
-            return {"thread_id": thread_id, "newly_created": False}
+            try:
+                topic = await self.bot.get_forum_topic(self.group_id, thread_id)
+                if topic:
+                    if getattr(topic, "is_closed", False):
+                        await self.bot.reopen_forum_topic(self.group_id, thread_id)
+                    return {"thread_id": thread_id, "newly_created": False}
+            except Exception as e:
+                logger.warn("mapped_topic_invalid", {
+                    "user_id": user_id,
+                    "thread_id": thread_id,
+                    "error": str(e),
+                })
+            await self.db.remove_user_topic_by_user(user_id)
+            await self.db.remove_thread_mapping(thread_id)
 
         # In-Flight 去重
         key = str(user_id)

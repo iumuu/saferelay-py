@@ -92,10 +92,21 @@ class ForwardService:
                 message_thread_id=target.get("message_thread_id"),
             )
             if fwd:
+                expected_thread = target.get("message_thread_id")
+                actual_thread = getattr(fwd, "message_thread_id", None)
+                if expected_thread and actual_thread != expected_thread:
+                    logger.warn("forward_landed_outside_topic", {
+                        "user_id": user_id,
+                        "fwd_id": fwd.id,
+                        "expected_thread": expected_thread,
+                        "actual_thread": actual_thread,
+                    })
+                    await self.bot.delete_messages(target["chat_id"], fwd.id)
+                    return None
                 logger.info("forward_single_ok", {"user_id": user_id, "fwd_id": fwd.id, "target_label": target.get("label")})
                 await self.db.store_forward_mapping(
                     fwd.id, user_id, msg.id,
-                    target.get("chat_id"), target.get("message_thread_id"),
+                    target.get("chat_id"), expected_thread,
                 )
             return fwd
         except Exception as e:
@@ -106,9 +117,20 @@ class ForwardService:
                     message_thread_id=target.get("message_thread_id"),
                 )
                 if copy:
+                    expected_thread = target.get("message_thread_id")
+                    actual_thread = getattr(copy, "message_thread_id", None)
+                    if expected_thread and actual_thread != expected_thread:
+                        logger.warn("copy_landed_outside_topic", {
+                            "user_id": user_id,
+                            "copy_id": copy.id,
+                            "expected_thread": expected_thread,
+                            "actual_thread": actual_thread,
+                        })
+                        await self.bot.delete_messages(target["chat_id"], copy.id)
+                        return None
                     await self.db.store_forward_mapping(
                         copy.id, user_id, msg.id,
-                        target.get("chat_id"), target.get("message_thread_id"),
+                        target.get("chat_id"), expected_thread,
                     )
                 return copy
             except Exception as e2:
