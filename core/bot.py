@@ -251,6 +251,8 @@ class Bot:
         admin_private_commands = [
             BotCommand("menu", "打开管理面板"),
             BotCommand("help", "管理员帮助"),
+            BotCommand("welcome", "设置欢迎消息"),
+            BotCommand("autoreply", "设置自动回复"),
             BotCommand("broadcast", "广播消息"),
         ]
         admin_group_commands = [

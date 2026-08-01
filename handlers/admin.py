@@ -150,8 +150,17 @@ def register(
     async def on_welcome(client: Any, message: Message) -> None:
         """设置欢迎消息。"""
         logger.info("admin_welcome", {"admin_id": message.from_user.id if message.from_user else 0})
-        parts = message.text.split(maxsplit=1)
-        if len(parts) < 2 or parts[1].strip() == "delete":
+        parts = (message.text or "").split(maxsplit=1)
+        if len(parts) < 2:
+            current = await db.get_config(CONFIG_WELCOME_MSG, "")
+            await message.reply_text(
+                f"👋 <b>当前欢迎消息</b>\n\n{current or '<i>未设置</i>'}\n\n"
+                f"设置：<code>/welcome 欢迎内容</code>\n"
+                f"删除：<code>/welcome delete</code>",
+                parse_mode=ParseMode.HTML,
+            )
+            return
+        if parts[1].strip().lower() in ("delete", "off"):
             await db.delete_config(CONFIG_WELCOME_MSG)
             await message.reply_text("✅ 欢迎消息已删除（恢复默认）。")
             return
@@ -164,8 +173,17 @@ def register(
     async def on_autoreply(client: Any, message: Message) -> None:
         """设置自动回复。"""
         logger.info("admin_autoreply", {"admin_id": message.from_user.id if message.from_user else 0})
-        parts = message.text.split(maxsplit=1)
-        if len(parts) < 2 or parts[1].strip() == "off":
+        parts = (message.text or "").split(maxsplit=1)
+        if len(parts) < 2:
+            current = await db.get_config(CONFIG_AUTO_REPLY_MSG, "")
+            await message.reply_text(
+                f"🤖 <b>当前自动回复</b>\n\n{current or '<i>已关闭</i>'}\n\n"
+                f"设置：<code>/autoreply 回复内容</code>\n"
+                f"关闭：<code>/autoreply off</code>",
+                parse_mode=ParseMode.HTML,
+            )
+            return
+        if parts[1].strip().lower() in ("off", "delete"):
             await db.delete_config(CONFIG_AUTO_REPLY_MSG)
             await message.reply_text("✅ 自动回复已关闭。")
             return

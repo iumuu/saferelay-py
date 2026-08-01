@@ -102,7 +102,17 @@ def register(
         else:
             await bot.send_message(user_id, result["message"], reply_markup=ReplyKeyboardRemove())
 
-    @bot.on_message(filters.private & ~web_app_data_filter & ~filters.command(["start", "help", "menu"]))
+    admin_commands = [
+        "menu", "help", "broadcast", "ban", "unban", "trust", "untrust",
+        "reset", "welcome", "autoreply", "cleanup", "cachestats", "clearcache",
+        "del", "delete",
+    ]
+
+    @bot.on_message(
+        filters.private
+        & ~web_app_data_filter
+        & ~filters.command(["start"] + admin_commands)
+    )
     async def on_guest_message(client: Any, message: Message) -> None:
         """处理用户私聊消息（非命令）。"""
         user_id = message.from_user.id if message.from_user else message.chat.id
