@@ -228,6 +228,12 @@ def register(
             elif action == "user_untrust":
                 await security_svc.remove_whitelist(target_id)
                 await callback.answer("已移出白名单")
+            elif action == "user_unverify":
+                await db.remove_verified(target_id)
+                if await security_svc.is_whitelisted(target_id):
+                    await callback.answer("已取消验证；该用户仍在白名单中，可免验证", show_alert=True)
+                else:
+                    await callback.answer("已取消验证，用户下次发送消息需重新验证")
             elif action != "user_view":
                 await callback.answer("未知操作", show_alert=True)
                 return

@@ -205,7 +205,7 @@ async def build_user_detail(
         f"黑名单：{'🚫 已拉黑' if banned else '✅ 正常'}\n"
         f"白名单：{'⭐ 已加入' if whitelisted else '⚪️ 未加入'}"
     )
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    rows = [
         [InlineKeyboardButton(
             "✅ 解除拉黑" if banned else "🚫 拉入黑名单",
             callback_data=f"user_unban:{user_id}:{page}" if banned else f"user_ban:{user_id}:{page}",
@@ -214,8 +214,14 @@ async def build_user_detail(
             "移出白名单" if whitelisted else "⭐ 加入白名单",
             callback_data=f"user_untrust:{user_id}:{page}" if whitelisted else f"user_trust:{user_id}:{page}",
         )],
-        [InlineKeyboardButton("◀️ 返回用户列表", callback_data=f"users_page:{page}")],
-    ])
+    ]
+    if verified:
+        rows.append([InlineKeyboardButton(
+            "🔄 取消验证",
+            callback_data=f"user_unverify:{user_id}:{page}",
+        )])
+    rows.append([InlineKeyboardButton("◀️ 返回用户列表", callback_data=f"users_page:{page}")])
+    keyboard = InlineKeyboardMarkup(inline_keyboard=rows)
     return text, keyboard
 
 
