@@ -237,6 +237,9 @@ class Bot:
         from pyrogram.types import (
             BotCommand,
             BotCommandScopeDefault,
+            BotCommandScopeAllPrivateChats,
+            BotCommandScopeAllGroupChats,
+            BotCommandScopeAllChatAdministrators,
             BotCommandScopeChat,
             BotCommandScopeChatMember,
         )
@@ -260,6 +263,35 @@ class Bot:
             BotCommand("reset", "重置用户验证"),
             BotCommand("delete", "撤回发给用户的消息"),
         ]
+
+        # Telegram 会长期保留各 Scope 的旧命令。先清理当前 Bot 的历史命令，
+        # 再写入当前配置，避免群聊显示旧版 /verify、/permissions 等命令。
+        cleanup_scopes = [
+            BotCommandScopeDefault(),
+            BotCommandScopeAllPrivateChats(),
+            BotCommandScopeAllGroupChats(),
+            BotCommandScopeAllChatAdministrators(),
+        ]
+        if group_id:
+            cleanup_scopes.append(BotCommandScopeChat(chat_id=group_id))
+        for admin_id in admin_ids or []:
+            cleanup_scopes.append(BotCommandScopeChat(chat_id=admin_id))
+            if group_id:
+                cleanup_scopes.append(BotCommandScopeChatMember(chat_id=group_id, user_id=admin_id))
+
+        for scope in cleanup_scopes:
+            for language_code in ("", "zh", "en"):
+                try:
+                    await self._client.delete_bot_commands(
+                        scope=scope,
+                        language_code=language_code,
+                    )
+                except Exception as exc:
+                    logger.warn("delete_old_bot_commands_failed", {
+                        "scope": str(scope),
+                        "language_code": language_code,
+                        "error": str(exc),
+                    })
 
         await self._client.set_bot_commands(user_commands, scope=BotCommandScopeDefault())
         for admin_id in admin_ids or []:
