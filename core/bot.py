@@ -253,6 +253,9 @@ class Bot:
             BotCommand("help", "管理员帮助"),
             BotCommand("welcome", "设置欢迎消息"),
             BotCommand("autoreply", "设置自动回复"),
+            BotCommand("spamadd", "添加垃圾拦截词"),
+            BotCommand("spamdel", "删除垃圾拦截词"),
+            BotCommand("spamlist", "查看垃圾过滤规则"),
             BotCommand("broadcast", "广播消息"),
         ]
         admin_group_commands = [
@@ -263,6 +266,9 @@ class Bot:
             BotCommand("trust", "加入白名单"),
             BotCommand("untrust", "移出白名单"),
             BotCommand("reset", "重置用户验证"),
+            BotCommand("spamadd", "添加垃圾拦截词"),
+            BotCommand("spamdel", "删除垃圾拦截词"),
+            BotCommand("spamlist", "查看垃圾过滤规则"),
             BotCommand("delete", "撤回发给用户的消息"),
         ]
 

@@ -1,5 +1,6 @@
 """管理员命令处理 — /menu, /ban, /unban, /trust, /untrust 等。"""
 
+import html
 from typing import Any, List, Optional
 
 from core.bot import ParseMode, Bot, InlineKeyboardButton, InlineKeyboardMarkup, Message, ReplyKeyboardRemove, filters
@@ -189,6 +190,53 @@ def register(
             return
         await db.set_config(CONFIG_AUTO_REPLY_MSG, parts[1].strip())
         await message.reply_text("✅ 自动回复已设置。")
+
+    ### ---- 垃圾过滤规则 ---- ###
+
+    @bot.on_message(filters.command("spamadd") & filters.user(admin_ids))
+    async def on_spam_add(client: Any, message: Message) -> None:
+        """增加垃圾拦截关键词。"""
+        parts = (message.text or "").split(maxsplit=1)
+        if len(parts) < 2 or not parts[1].strip():
+            await message.reply_text("⚠️ 用法：<code>/spamadd 关键词</code>", parse_mode=ParseMode.HTML)
+            return
+        keyword = parts[1].strip()
+        added = await security_svc.add_spam_keyword(keyword)
+        if added:
+            await message.reply_text(f"✅ 已添加垃圾拦截词：<code>{html.escape(keyword)}</code>", parse_mode=ParseMode.HTML)
+        else:
+            await message.reply_text("⚠️ 关键词为空或已经存在。")
+
+    @bot.on_message(filters.command("spamdel") & filters.user(admin_ids))
+    async def on_spam_del(client: Any, message: Message) -> None:
+        """删除垃圾拦截关键词。"""
+        parts = (message.text or "").split(maxsplit=1)
+        if len(parts) < 2 or not parts[1].strip():
+            await message.reply_text("⚠️ 用法：<code>/spamdel 关键词</code>", parse_mode=ParseMode.HTML)
+            return
+        keyword = parts[1].strip()
+        removed = await security_svc.remove_spam_keyword(keyword)
+        if removed:
+            await message.reply_text(f"✅ 已删除垃圾拦截词：<code>{html.escape(keyword)}</code>", parse_mode=ParseMode.HTML)
+        else:
+            await message.reply_text("⚠️ 未找到该关键词。")
+
+    @bot.on_message(filters.command("spamlist") & filters.user(admin_ids))
+    async def on_spam_list(client: Any, message: Message) -> None:
+        """查看垃圾过滤规则。"""
+        rules = await security_svc.get_spam_rules()
+        keywords = rules.get("keywords", [])
+        keyword_text = "、".join(html.escape(str(item)) for item in keywords) if keywords else "（无）"
+        if len(keyword_text) > 3000:
+            keyword_text = keyword_text[:3000] + "…"
+        await message.reply_text(
+            f"🗑 <b>垃圾过滤规则</b>\n\n"
+            f"关键词：<b>{len(keywords)}</b> 个\n"
+            f"正则：<b>{len(rules.get('regexes', []))}</b> 条\n"
+            f"链接阈值：<b>{rules.get('maxLinks', 3)}</b>\n\n"
+            f"<b>关键词列表：</b>\n{keyword_text}",
+            parse_mode=ParseMode.HTML,
+        )
 
     ### ---- /broadcast ---- ###
 

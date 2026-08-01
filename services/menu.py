@@ -78,11 +78,16 @@ async def build_spam_menu(
 ) -> Tuple[str, InlineKeyboardMarkup]:
     """构建垃圾过滤设置菜单。"""
     enabled = await security_svc.is_spam_enabled()
+    rules = await security_svc.get_spam_rules()
     text = (
         f"🗑 <b>垃圾消息过滤设置</b>\n\n"
-        f"当前状态: <b>{'🟢 已开启' if enabled else '🔴 已关闭'}</b>\n\n"
-        f"💡 直接发送关键词即可添加拦截规则\n"
-        f"发送 <code>del:关键词</code> 删除拦截词"
+        f"当前状态：<b>{'🟢 已开启' if enabled else '🔴 已关闭'}</b>\n"
+        f"关键词：<b>{len(rules.get('keywords', []))}</b> 个\n"
+        f"正则规则：<b>{len(rules.get('regexes', []))}</b> 条\n"
+        f"链接阈值：<b>{rules.get('maxLinks', 3)}</b>\n\n"
+        f"添加：<code>/spamadd 关键词</code>\n"
+        f"删除：<code>/spamdel 关键词</code>\n"
+        f"查看：<code>/spamlist</code>"
     )
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(

@@ -160,6 +160,34 @@ class SecurityService:
         await self.set_spam_rules(DEFAULT_SPAM_RULES)
         return dict(DEFAULT_SPAM_RULES)
 
+    async def add_spam_keyword(self, keyword: str) -> bool:
+        """增加垃圾拦截关键词；已存在时返回 False。"""
+        keyword = keyword.strip()
+        if not keyword:
+            return False
+        rules = await self.get_spam_rules()
+        keywords = list(rules.get("keywords", []))
+        if any(item.lower() == keyword.lower() for item in keywords):
+            return False
+        keywords.append(keyword)
+        rules["keywords"] = keywords
+        await self.set_spam_rules(rules)
+        return True
+
+    async def remove_spam_keyword(self, keyword: str) -> bool:
+        """删除垃圾拦截关键词；不存在时返回 False。"""
+        keyword = keyword.strip()
+        if not keyword:
+            return False
+        rules = await self.get_spam_rules()
+        keywords = list(rules.get("keywords", []))
+        new_keywords = [item for item in keywords if item.lower() != keyword.lower()]
+        if len(new_keywords) == len(keywords):
+            return False
+        rules["keywords"] = new_keywords
+        await self.set_spam_rules(rules)
+        return True
+
     async def is_spam_enabled(self) -> bool:
         """检查垃圾过滤是否启用。"""
         val = await self.db.get_config("spam_filter_enabled", "1")

@@ -105,7 +105,7 @@ def register(
     admin_commands = [
         "menu", "help", "broadcast", "ban", "unban", "trust", "untrust",
         "reset", "welcome", "autoreply", "cleanup", "cachestats", "clearcache",
-        "del", "delete",
+        "spamadd", "spamdel", "spamlist", "del", "delete",
     ]
 
     @bot.on_message(
