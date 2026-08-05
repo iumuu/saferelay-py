@@ -50,8 +50,8 @@ class ForwardService:
 
         await self.media_collector.collect(message, lambda msgs: self._do_forward(msgs, user_id))
 
-    async def _do_forward(self, messages: List[Message], user_id: int) -> None:
-        """执行转发到群聊话题。"""
+    async def _do_forward(self, messages: List[Message], user_id: int) -> bool:
+        """执行转发到群聊话题，返回是否成功送入对应话题。"""
         logger.info("do_forward", {"user_id": user_id})
 
         profile = {"first_name": messages[0].from_user.first_name if messages[0].from_user else "",
@@ -61,17 +61,17 @@ class ForwardService:
         if topic and topic.get("thread_id"):
             ok = await self._forward_to_topic(messages, user_id, topic["thread_id"])
             if ok:
-                return
+                return True
             logger.warn("topic_forward_failed_retry_recreate", {"user_id": user_id, "old_thread_id": topic.get("thread_id")})
             await self.db.remove_user_topic_by_user(user_id)
             await self.db.remove_thread_mapping(topic["thread_id"])
             topic = await self.ensure_user_topic(user_id, profile)
             if topic and topic.get("thread_id"):
-                await self._forward_to_topic(messages, user_id, topic["thread_id"])
-                return
+                return await self._forward_to_topic(messages, user_id, topic["thread_id"])
             logger.error("topic_forward_retry_failed_no_thread", {"user_id": user_id})
-        else:
-            logger.error("topic_forward_failed_no_thread", {"user_id": user_id})
+            return False
+        logger.error("topic_forward_failed_no_thread", {"user_id": user_id})
+        return False
 
     async def _forward_to_topic(self, messages: List[Message], user_id: int, thread_id: int) -> bool:
         """转发消息到话题，返回是否至少成功转发一条。"""
@@ -223,15 +223,6 @@ class ForwardService:
         for item in pending:
             msg_id = item["message_id"]
             try:
-                topic = await self.ensure_user_topic(user_id)
-                if topic and topic.get("thread_id"):
-                    target = {"chat_id": self.group_id, "message_thread_id": topic["thread_id"]}
-                else:
-                    logger.error("pending_forward_no_topic", {"user_id": user_id})
-                    failed += 1
-                    await self.db.delete_pending_item(user_id, msg_id)
-                    continue
-
                 # 确认消息存在（get_messages 返回 Message 或 None）
                 orig = await self.bot.get_messages(user_id, msg_id)
                 if not orig:
@@ -240,22 +231,13 @@ class ForwardService:
                     await self.db.delete_pending_item(user_id, msg_id)
                     continue
 
-                # 使用 bot.copy_message（底层 client.copy_message）复制到话题
-                # 避免 msg.copy() 的 _client 绑定问题，同时不带转发标签
-                fwd = await self.bot.copy_message(
-                    target["chat_id"], user_id, msg_id,
-                    message_thread_id=target.get("message_thread_id"),
-                )
-                # 存储 ForwardMapping（确保管理员回复能找到用户）
-                if fwd and hasattr(fwd, "id"):
-                    await self.db.store_forward_mapping(
-                        fwd_msg_id=fwd.id,
-                        source_chat=user_id,
-                        source_msg_id=msg_id,
-                        target_chat=target.get("chat_id"),
-                        thread_id=target.get("message_thread_id"),
-                    )
-                forwarded += 1
+                # 首次验证后的暂存消息必须复用普通转发路径：
+                # 主动校验话题、检测误投 General、必要时重建话题。
+                ok = await self._do_forward([orig], user_id)
+                if ok:
+                    forwarded += 1
+                else:
+                    failed += 1
             except Exception as e:
                 logger.error("pending_forward_failed", {"user_id": user_id, "message_id": msg_id, "error": str(e)})
                 failed += 1
