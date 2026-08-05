@@ -117,10 +117,12 @@ async def amain() -> None:
         await bot.start()
 
         # 发送启动通知给所有管理员
-        import datetime
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        beijing_time = datetime.now(ZoneInfo("Asia/Shanghai"))
         startup_msg = (
             f"✅ <b>SafeRelay 已启动</b>\n\n"
-            f"⏰ <code>{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</code>"
+            f"⏰ 北京时间：<code>{beijing_time.strftime('%Y-%m-%d %H:%M:%S')}</code>"
         )
         for admin_id in cfg.config.admin_ids:
             try:
