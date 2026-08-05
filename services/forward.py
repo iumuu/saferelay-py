@@ -94,7 +94,7 @@ class ForwardService:
             if fwd:
                 expected_thread = target.get("message_thread_id")
                 actual_thread = getattr(fwd, "message_thread_id", None)
-                if expected_thread and actual_thread != expected_thread:
+                if expected_thread and actual_thread is not None and actual_thread != expected_thread:
                     logger.warn("forward_landed_outside_topic", {
                         "user_id": user_id,
                         "fwd_id": fwd.id,
@@ -119,7 +119,7 @@ class ForwardService:
                 if copy:
                     expected_thread = target.get("message_thread_id")
                     actual_thread = getattr(copy, "message_thread_id", None)
-                    if expected_thread and actual_thread != expected_thread:
+                    if expected_thread and actual_thread is not None and actual_thread != expected_thread:
                         logger.warn("copy_landed_outside_topic", {
                             "user_id": user_id,
                             "copy_id": copy.id,
@@ -220,29 +220,35 @@ class ForwardService:
         forwarded = 0
         failed = 0
 
+        # 同一轮验证只确认/创建一次话题，避免多条暂存消息各自触发创建。
+        originals: List[Message] = []
         for item in pending:
             msg_id = item["message_id"]
             try:
-                # 确认消息存在（get_messages 返回 Message 或 None）
                 orig = await self.bot.get_messages(user_id, msg_id)
-                if not orig:
+                if orig:
+                    originals.append(orig)
+                else:
                     logger.warn("pending_forward_no_msg", {"user_id": user_id, "msg_id": msg_id})
                     failed += 1
-                    await self.db.delete_pending_item(user_id, msg_id)
-                    continue
-
-                # 首次验证后的暂存消息必须复用普通转发路径：
-                # 主动校验话题、检测误投 General、必要时重建话题。
-                ok = await self._do_forward([orig], user_id)
-                if ok:
-                    forwarded += 1
-                else:
-                    failed += 1
             except Exception as e:
-                logger.error("pending_forward_failed", {"user_id": user_id, "message_id": msg_id, "error": str(e)})
+                logger.error("pending_fetch_failed", {"user_id": user_id, "message_id": msg_id, "error": str(e)})
                 failed += 1
 
-            await self.db.delete_pending_item(user_id, msg_id)
+        if originals:
+            try:
+                # 所有暂存消息一次进入同一用户话题。
+                ok = await self._do_forward(originals, user_id)
+                if ok:
+                    forwarded = len(originals)
+                else:
+                    failed += len(originals)
+            except Exception as e:
+                logger.error("pending_forward_failed", {"user_id": user_id, "error": str(e)})
+                failed += len(originals)
+
+        for item in pending:
+            await self.db.delete_pending_item(user_id, item["message_id"])
 
         if failed == 0:
             await self.db.clear_pending(user_id)

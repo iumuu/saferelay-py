@@ -100,18 +100,19 @@ class TopicManager:
         if thread_id:
             try:
                 topic = await self.bot.get_forum_topic(self.group_id, thread_id)
-                if topic:
-                    if getattr(topic, "is_closed", False):
-                        await self.bot.reopen_forum_topic(self.group_id, thread_id)
-                    return {"thread_id": thread_id, "newly_created": False}
+                # 部分 Kurigram 版本可能返回 None；这不代表话题不存在，
+                # 继续使用已保存映射，避免每条暂存消息都重复创建话题。
+                if topic and getattr(topic, "is_closed", False):
+                    await self.bot.reopen_forum_topic(self.group_id, thread_id)
+                return {"thread_id": thread_id, "newly_created": False}
             except Exception as e:
                 logger.warn("mapped_topic_invalid", {
                     "user_id": user_id,
                     "thread_id": thread_id,
                     "error": str(e),
                 })
-            await self.db.remove_user_topic_by_user(user_id)
-            await self.db.remove_thread_mapping(thread_id)
+                await self.db.remove_user_topic_by_user(user_id)
+                await self.db.remove_thread_mapping(thread_id)
 
         # In-Flight 去重
         key = str(user_id)
