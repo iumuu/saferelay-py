@@ -122,7 +122,7 @@ async def amain() -> None:
         beijing_time = datetime.now(ZoneInfo("Asia/Shanghai"))
         startup_msg = (
             f"✅ <b>SafeRelay 已启动</b>\n\n"
-            f"⏰ 北京时间：<code>{beijing_time.strftime('%Y-%m-%d %H:%M:%S')}</code>"
+            f"⏰ <code>{beijing_time.strftime('%Y-%m-%d %H:%M:%S')}</code>"
         )
         for admin_id in cfg.config.admin_ids:
             try:
