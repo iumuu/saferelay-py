@@ -92,21 +92,12 @@ class ForwardService:
                 message_thread_id=target.get("message_thread_id"),
             )
             if fwd:
-                expected_thread = target.get("message_thread_id")
-                actual_thread = getattr(fwd, "message_thread_id", None)
-                if expected_thread and actual_thread is not None and actual_thread != expected_thread:
-                    logger.warn("forward_landed_outside_topic", {
-                        "user_id": user_id,
-                        "fwd_id": fwd.id,
-                        "expected_thread": expected_thread,
-                        "actual_thread": actual_thread,
-                    })
-                    await self.bot.delete_messages(target["chat_id"], fwd.id)
-                    return None
+                # Kurigram 返回对象的 message_thread_id 在不同版本中并不稳定，
+                # 不能据此判断消息是否进了话题，否则会错误重复创建话题。
                 logger.info("forward_single_ok", {"user_id": user_id, "fwd_id": fwd.id, "target_label": target.get("label")})
                 await self.db.store_forward_mapping(
                     fwd.id, user_id, msg.id,
-                    target.get("chat_id"), expected_thread,
+                    target.get("chat_id"), target.get("message_thread_id"),
                 )
             return fwd
         except Exception as e:
@@ -117,20 +108,10 @@ class ForwardService:
                     message_thread_id=target.get("message_thread_id"),
                 )
                 if copy:
-                    expected_thread = target.get("message_thread_id")
-                    actual_thread = getattr(copy, "message_thread_id", None)
-                    if expected_thread and actual_thread is not None and actual_thread != expected_thread:
-                        logger.warn("copy_landed_outside_topic", {
-                            "user_id": user_id,
-                            "copy_id": copy.id,
-                            "expected_thread": expected_thread,
-                            "actual_thread": actual_thread,
-                        })
-                        await self.bot.delete_messages(target["chat_id"], copy.id)
-                        return None
+                    # 同上：不要以返回对象的 message_thread_id 判断投递位置。
                     await self.db.store_forward_mapping(
                         copy.id, user_id, msg.id,
-                        target.get("chat_id"), expected_thread,
+                        target.get("chat_id"), target.get("message_thread_id"),
                     )
                 return copy
             except Exception as e2:
@@ -173,8 +154,15 @@ class ForwardService:
 
         guest_chat_id = None
 
-        # 通过话题 ID 查找用户
-        if message.chat and self.group_id and str(message.chat.id) == str(self.group_id) and message.message_thread_id:
+        # 优先根据被回复的机器人转发消息反查原用户：即使话题映射丢失，
+        # 只要管理员回复的是用户转发消息，仍然可以正确回复。
+        if reply:
+            mapping = await self.db.get_forward_mapping(reply.id)
+            if mapping:
+                guest_chat_id = mapping.get("source_chat")
+
+        # 回退：通过话题 ID 查找用户
+        if not guest_chat_id and message.chat and self.group_id and str(message.chat.id) == str(self.group_id) and message.message_thread_id:
             guest_chat_id = await self.db.get_user_by_thread(message.message_thread_id)
 
         logger.info("admin_reply", {

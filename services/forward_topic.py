@@ -93,26 +93,12 @@ class TopicManager:
         if not self.group_id:
             return None
 
-        # 检查已有映射，并主动确认 Telegram 话题仍然存在。
-        # 已删除话题有时不会导致发送报错，而会把消息送到 General，
-        # 因此不能只依赖转发失败来判断映射失效。
+        # 已有映射就直接复用。Kurigram 的 get_forum_topic 在部分版本中
+        # 会对正常话题返回空或抛异常，主动校验会错误清理映射并重复建话题。
+        # 失效映射仅在实际发送失败时由 ForwardService 清理和重建。
         thread_id = await self.db.get_user_topic(user_id)
         if thread_id:
-            try:
-                topic = await self.bot.get_forum_topic(self.group_id, thread_id)
-                # 部分 Kurigram 版本可能返回 None；这不代表话题不存在，
-                # 继续使用已保存映射，避免每条暂存消息都重复创建话题。
-                if topic and getattr(topic, "is_closed", False):
-                    await self.bot.reopen_forum_topic(self.group_id, thread_id)
-                return {"thread_id": thread_id, "newly_created": False}
-            except Exception as e:
-                logger.warn("mapped_topic_invalid", {
-                    "user_id": user_id,
-                    "thread_id": thread_id,
-                    "error": str(e),
-                })
-                await self.db.remove_user_topic_by_user(user_id)
-                await self.db.remove_thread_mapping(thread_id)
+            return {"thread_id": thread_id, "newly_created": False}
 
         # In-Flight 去重
         key = str(user_id)
